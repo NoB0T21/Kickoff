@@ -1,43 +1,50 @@
-import Fastify, { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import Fastify, { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
-import dotenv from 'dotenv';
+import rateLimit from '@fastify/rate-limit';
+import { env } from './config/env.js';
 import { pool } from './config/db.js';
-
-dotenv.config();
+import { registerErrorHandler } from './middleware/errorHandler.js';
+import { registerRoutes } from './routes.js';
+import './workers/emailWorker.js';
 
 const server: FastifyInstance = Fastify({
   logger: true,
 });
 
-// Configure CORS
+// ── Plugins ──
+
+// CORS
 await server.register(cors, {
   origin: '*', // Adjust to specific origins in production
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
 });
 
-// Register JWT Plugin
-const jwtSecret = process.env.SUPABASE_JWT_SECRET || 'super-secret-temp-key';
+// JWT — local signature verification using Supabase JWT secret
 await server.register(jwt, {
-  secret: jwtSecret,
+  secret: env.SUPABASE_JWT_SECRET,
 });
 
-// Authentication Decorator
-server.decorate(
-  'authenticate',
-  async (request: FastifyRequest, reply: FastifyReply) => {
-    try {
-      await request.jwtVerify();
-    } catch (err) {
-      reply.status(401).send({ error: 'Unauthorized: Invalid token' });
-    }
-  }
-);
+// Rate limiting — stricter on auth endpoints
+await server.register(rateLimit, {
+  max: 100,
+  timeWindow: '1 minute',
+  keyGenerator: (request) => request.ip,
+});
 
-// Global Health Check
+// ── Error Handler ──
+registerErrorHandler(server);
+
+// ── Type Augmentation ──
+declare module 'fastify' {
+  interface FastifyRequest {
+    userId: string;
+  }
+}
+
+// ── Health Check ──
 server.get('/health', async (request, reply) => {
   try {
-    // Check Database connection
     const client = await pool.connect();
     const result = await client.query('SELECT NOW()');
     client.release();
@@ -56,20 +63,14 @@ server.get('/health', async (request, reply) => {
   }
 });
 
-// Start Server
-const PORT = parseInt(process.env.PORT || '3000', 10);
-const HOST = process.env.HOST || '0.0.0.0';
+// ── Routes ──
+await registerRoutes(server);
 
-server.listen({ port: PORT, host: HOST }, (err, address) => {
+// ── Start Server ──
+server.listen({ port: env.PORT, host: env.HOST }, (err, address) => {
   if (err) {
     server.log.error(err);
     process.exit(1);
   }
   server.log.info(`Server listening on ${address}`);
 });
-
-declare module 'fastify' {
-  interface FastifyInstance {
-    authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
-  }
-}
