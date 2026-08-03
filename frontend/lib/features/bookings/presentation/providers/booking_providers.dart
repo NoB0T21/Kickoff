@@ -133,7 +133,7 @@ class BookingNotifier extends StateNotifier<AsyncValue<BookingModel?>> {
   Future<bool> cancelBooking(String bookingId) async {
     final apiClient = _ref.read(apiClientProvider);
     try {
-      await apiClient.post('/api/bookings/$bookingId/cancel');
+      await apiClient.post('/api/bookings/$bookingId/cancel', data: {});
       return true;
     } catch (e) {
       return false;
@@ -149,10 +149,10 @@ final bookingProvider = StateNotifierProvider<BookingNotifier, AsyncValue<Bookin
 final userBookingsProvider = FutureProvider.autoDispose<List<BookingModel>>((ref) async {
   final supabase = Supabase.instance.client;
   
-  // Joins bookings with turfs details
+  // Joins bookings with turfs details and associated events (if any)
   final response = await supabase
       .from('bookings')
-      .select('*, turfs(*)')
+      .select('*, turfs(*), events(id, status)')
       .order('created_at', ascending: false);
 
   final List<dynamic> list = response as List<dynamic>;

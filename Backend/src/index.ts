@@ -8,6 +8,7 @@ import { registerErrorHandler } from './middleware/errorHandler.js';
 import { registerRoutes } from './routes.js';
 import './workers/emailWorker.js';
 import './workers/reconciliationWorker.js';
+import './workers/eventWorker.js';
 
 const server: FastifyInstance = Fastify({
   logger: true,

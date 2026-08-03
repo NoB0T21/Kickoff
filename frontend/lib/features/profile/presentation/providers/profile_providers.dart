@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:kickoff/features/profile/data/profile_repository.dart';
 import 'package:kickoff/features/profile/domain/profile_model.dart';
 import 'package:kickoff/features/auth/presentation/providers/auth_providers.dart';
@@ -119,4 +120,21 @@ final viewProfileProvider =
     FutureProvider.family<ProfileModel, String>((ref, userId) async {
   final repo = ref.read(profileRepositoryProvider);
   return await repo.getProfile(userId);
+});
+
+// ── Check if current user follows a target user ──
+
+final isFollowingProvider =
+    FutureProvider.autoDispose.family<bool, String>((ref, targetUserId) async {
+  final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+  if (currentUserId == null || currentUserId == targetUserId) return false;
+
+  final response = await Supabase.instance.client
+      .from('follows')
+      .select('follower_id, following_id')
+      .eq('follower_id', currentUserId)
+      .eq('following_id', targetUserId)
+      .maybeSingle();
+
+  return response != null;
 });

@@ -14,6 +14,11 @@ import '../../features/turfs/presentation/turf_detail_screen.dart';
 import '../../features/bookings/presentation/checkout_screen.dart';
 import '../../features/bookings/presentation/payment_webview_screen.dart';
 import '../../features/bookings/presentation/booking_receipt_screen.dart';
+import '../../features/events/presentation/event_create_screen.dart';
+import '../../features/events/presentation/event_detail_screen.dart';
+import '../../features/events/presentation/event_invite_screen.dart';
+
+// (rest of imports)
 
 class RouterRefreshListenable extends ChangeNotifier {
   RouterRefreshListenable(Ref ref) {
@@ -142,6 +147,27 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => BookingReceiptScreen(
           receiptData: state.extra as Map<String, dynamic>,
         ),
+      ),
+      GoRoute(
+        path: '/events/new',
+        builder: (context, state) {
+          final bookingId = state.uri.queryParameters['booking_id'] ?? '';
+          return EventCreateScreen(bookingId: bookingId);
+        },
+      ),
+      GoRoute(
+        path: '/events/:id',
+        builder: (context, state) {
+          final eventId = state.pathParameters['id'] ?? '';
+          return EventDetailScreen(eventId: eventId);
+        },
+      ),
+      GoRoute(
+        path: '/events/invite/:token',
+        builder: (context, state) {
+          final token = state.pathParameters['token'] ?? '';
+          return EventInviteScreen(inviteToken: token);
+        },
       ),
     ],
   );

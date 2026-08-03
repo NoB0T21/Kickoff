@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:kickoff/features/bookings/presentation/providers/booking_providers.dart';
 import 'package:kickoff/features/bookings/domain/booking_model.dart';
 import 'package:kickoff/features/turfs/domain/turf_model.dart';
@@ -91,11 +92,20 @@ class MyBookingsScreen extends ConsumerWidget {
               itemBuilder: (context, index) {
                 final booking = bookings[index];
                 final turf = booking.turf;
-                final statusColor = _getStatusColor(booking.status);
+                // Check if slot is expired (in the past)
+                bool isExpired = false;
+                try {
+                  final startHour = booking.hours[0];
+                  final startTime = DateTime.parse("${booking.slotDate}T${startHour.toString().padLeft(2, '0')}:00:00Z");
+                  final now = DateTime.now().toUtc();
+                  isExpired = now.isAfter(startTime);
+                } catch (e) {
+                  isExpired = false;
+                }
 
                 // Check if cancellation is allowed (> 5h)
                 bool canCancel = false;
-                if (booking.status == BookingStatus.confirmed) {
+                if (!isExpired && booking.status == BookingStatus.confirmed) {
                   try {
                     final startHour = booking.hours[0];
                     final startTime = DateTime.parse("${booking.slotDate}T${startHour.toString().padLeft(2, '0')}:00:00Z");
@@ -105,6 +115,10 @@ class MyBookingsScreen extends ConsumerWidget {
                     canCancel = false;
                   }
                 }
+
+                final statusColor = isExpired && booking.status == BookingStatus.confirmed
+                    ? Colors.grey
+                    : _getStatusColor(booking.status);
 
                 return Card(
                   margin: const EdgeInsets.only(bottom: 16),
@@ -138,7 +152,9 @@ class MyBookingsScreen extends ConsumerWidget {
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
-                                _getStatusLabel(booking.status),
+                                isExpired && booking.status == BookingStatus.confirmed
+                                    ? 'Expired'
+                                    : _getStatusLabel(booking.status),
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w800,
@@ -197,8 +213,61 @@ class MyBookingsScreen extends ConsumerWidget {
                             ],
                           ),
                         ],
-                        // Action Bar: Cancel Booking
-                        if (canCancel) ...[
+                        // Action Bar: Host Match and Cancel Booking
+                        if (!isExpired && booking.status == BookingStatus.confirmed) ...[
+                          const Divider(height: 24),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              if (canCancel) ...[
+                                OutlinedButton.icon(
+                                  onPressed: () => _confirmCancelBooking(context, ref, booking.id),
+                                  icon: const Icon(Icons.cancel_outlined, size: 16, color: Colors.red),
+                                  label: const Text(
+                                    'Cancel Booking',
+                                    style: TextStyle(color: Colors.red, fontWeight: FontWeight.w700),
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    side: const BorderSide(color: Colors.red),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                              ],
+                              if (booking.eventId != null) ...[
+                                ElevatedButton.icon(
+                                  onPressed: () {
+                                    context.go('/events/${booking.eventId}');
+                                  },
+                                  icon: const Icon(Icons.edit, size: 16, color: Colors.white),
+                                  label: const Text(
+                                    'Edit Match',
+                                    style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.blue.shade700,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  ),
+                                ),
+                              ] else ...[
+                                ElevatedButton.icon(
+                                  onPressed: () {
+                                    context.go('/events/new?booking_id=${booking.id}');
+                                  },
+                                  icon: const Icon(Icons.sports_soccer, size: 16, color: Colors.white),
+                                  label: const Text(
+                                    'Host Match',
+                                    style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppTheme.primaryGreen,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ] else if (!isExpired && canCancel) ...[
                           const Divider(height: 24),
                           Align(
                             alignment: Alignment.centerRight,

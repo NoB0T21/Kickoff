@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:kickoff/features/turfs/presentation/turf_list_screen.dart';
 import 'package:kickoff/features/profile/presentation/profile_screen.dart';
 import 'package:kickoff/features/bookings/presentation/my_bookings_screen.dart';
+import 'package:kickoff/features/events/presentation/community_screen.dart';
 import 'package:kickoff/core/theme/app_theme.dart';
 
 class MainNavigationScreen extends StatefulWidget {
@@ -17,6 +18,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   final List<Widget> _screens = [
     const TurfListScreen(),
     const MyBookingsScreen(),
+    const CommunityScreen(),
     const ProfileScreen(),
   ];
 
@@ -65,6 +67,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               icon: Icon(Icons.confirmation_num_outlined),
               activeIcon: Icon(Icons.confirmation_num, color: AppTheme.primaryGreen),
               label: 'Bookings',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.people_outline),
+              activeIcon: Icon(Icons.people, color: AppTheme.primaryGreen),
+              label: 'Community',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),

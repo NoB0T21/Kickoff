@@ -17,6 +17,8 @@ class BookingModel {
   final String? idempotencyKey;
   final DateTime createdAt;
   final TurfModel? turf;
+  final String? eventId;
+  final String? eventStatus;
 
   BookingModel({
     required this.id,
@@ -33,6 +35,8 @@ class BookingModel {
     this.idempotencyKey,
     required this.createdAt,
     this.turf,
+    this.eventId,
+    this.eventStatus,
   });
 
   factory BookingModel.fromJson(Map<String, dynamic> json) {
@@ -50,6 +54,18 @@ class BookingModel {
       status = BookingStatus.refunded;
     }
 
+    final eventsData = json['events'];
+    String? eventId;
+    String? eventStatus;
+    if (eventsData is List && eventsData.isNotEmpty) {
+      final eventMap = eventsData.first as Map<String, dynamic>;
+      eventId = eventMap['id'] as String?;
+      eventStatus = eventMap['status'] as String?;
+    } else if (eventsData is Map) {
+      eventId = eventsData['id'] as String?;
+      eventStatus = eventsData['status'] as String?;
+    }
+
     return BookingModel(
       id: json['id'] as String,
       userId: json['user_id'] as String,
@@ -65,6 +81,8 @@ class BookingModel {
       idempotencyKey: json['idempotency_key'] as String?,
       createdAt: DateTime.parse(json['created_at'] ?? DateTime.now().toIso8601String()),
       turf: json['turfs'] != null ? TurfModel.fromJson(json['turfs'] as Map<String, dynamic>) : null,
+      eventId: eventId,
+      eventStatus: eventStatus,
     );
   }
 }

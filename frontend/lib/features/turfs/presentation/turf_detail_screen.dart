@@ -252,16 +252,24 @@ class _TurfDetailScreenState extends ConsumerState<TurfDetailScreen> {
                       // Check states
                       final isBooked = slot.status == SlotStatus.booked;
                       final isLocked = slot.status == SlotStatus.locked;
+
+                      // Check if slot start hour has already passed (if date is today)
+                      final isToday = DateUtils.isSameDay(_selectedDate, DateTime.now());
+                      final now = DateTime.now();
+                      final isPastSlot = isToday && (slot.startHour <= now.hour);
                       
                       Color cardColor = Colors.white;
                       Color borderColor = Colors.green.shade600;
                       Widget slotIcon = const SizedBox.shrink();
                       Color textColor = Colors.green.shade800;
 
-                      if (isBooked) {
+                      if (isBooked || isPastSlot) {
                         cardColor = Colors.grey.shade100;
                         borderColor = Colors.grey.shade300;
                         textColor = Colors.grey.shade500;
+                        if (isPastSlot) {
+                          slotIcon = Icon(Icons.block, size: 12, color: Colors.grey.shade400);
+                        }
                       } else if (isLocked) {
                         cardColor = Colors.amber.shade50;
                         borderColor = Colors.amber.shade400;
@@ -277,7 +285,7 @@ class _TurfDetailScreenState extends ConsumerState<TurfDetailScreen> {
                       final endStr = slot.endHour.toString().padLeft(2, '0');
 
                       return GestureDetector(
-                        onTap: (isBooked || isLocked)
+                        onTap: (isBooked || isLocked || isPastSlot)
                             ? null
                             : () {
                                 setState(() {
