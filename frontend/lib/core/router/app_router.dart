@@ -9,6 +9,11 @@ import '../../features/auth/presentation/otp_screen.dart';
 import '../../features/auth/presentation/providers/auth_providers.dart';
 import '../../features/profile/presentation/onboarding_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
+import '../../features/dashboard/presentation/main_navigation_screen.dart';
+import '../../features/turfs/presentation/turf_detail_screen.dart';
+import '../../features/bookings/presentation/checkout_screen.dart';
+import '../../features/bookings/presentation/payment_webview_screen.dart';
+import '../../features/bookings/presentation/booking_receipt_screen.dart';
 
 class RouterRefreshListenable extends ChangeNotifier {
   RouterRefreshListenable(Ref ref) {
@@ -60,7 +65,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Authenticated: redirect away from auth routes
       if (authState.status == AuthStatus.authenticated) {
         if (path == '/login' || path == '/signup' || path == '/onboarding' || path == '/splash') {
-          return '/profile';
+          return '/';
         }
         return null;
       }
@@ -105,13 +110,37 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const OnboardingScreen(),
       ),
       GoRoute(
-        path: '/profile',
-        builder: (context, state) => const ProfileScreen(),
+        path: '/',
+        builder: (context, state) => const MainNavigationScreen(),
       ),
       GoRoute(
         path: '/profile/:id',
         builder: (context, state) => ProfileScreen(
           userId: state.pathParameters['id'],
+        ),
+      ),
+      GoRoute(
+        path: '/turfs/:id',
+        builder: (context, state) => TurfDetailScreen(
+          turfId: state.pathParameters['id']!,
+        ),
+      ),
+      GoRoute(
+        path: '/checkout',
+        builder: (context, state) => CheckoutScreen(
+          checkoutData: state.extra as Map<String, dynamic>,
+        ),
+      ),
+      GoRoute(
+        path: '/checkout/pay',
+        builder: (context, state) => PaymentWebviewScreen(
+          paymentData: state.extra as Map<String, dynamic>,
+        ),
+      ),
+      GoRoute(
+        path: '/checkout/receipt',
+        builder: (context, state) => BookingReceiptScreen(
+          receiptData: state.extra as Map<String, dynamic>,
         ),
       ),
     ],

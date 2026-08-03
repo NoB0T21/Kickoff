@@ -24,4 +24,8 @@ export const env = {
   SMTP_PASS: process.env.SMTP_PASS || '',
   SMTP_FROM: process.env.SMTP_FROM || '"Kickoff" <noreply@kickoff.com>',
   SMTP_SECURE: process.env.SMTP_SECURE === 'true',
+  CASHFREE_APP_ID: requireEnv('CASHFREE_APP_ID'),
+  CASHFREE_SECRET_KEY: requireEnv('CASHFREE_SECRET_KEY'),
+  CASHFREE_BASE_URL: process.env.CASHFREE_BASE_URL || 'https://sandbox.cashfree.com/pg',
+  CASHFREE_WEBHOOK_SECRET: requireEnv('CASHFREE_WEBHOOK_SECRET'),
 } as const;

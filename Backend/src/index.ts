@@ -7,6 +7,7 @@ import { pool } from './config/db.js';
 import { registerErrorHandler } from './middleware/errorHandler.js';
 import { registerRoutes } from './routes.js';
 import './workers/emailWorker.js';
+import './workers/reconciliationWorker.js';
 
 const server: FastifyInstance = Fastify({
   logger: true,

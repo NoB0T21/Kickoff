@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:kickoff/core/network/api_client.dart';
+import 'package:kickoff/core/network/api_exceptions.dart';
 import 'package:kickoff/features/auth/data/auth_repository.dart';
 import 'package:kickoff/features/auth/domain/auth_state.dart' as app;
 import 'package:kickoff/features/profile/presentation/providers/profile_providers.dart';
@@ -49,6 +51,7 @@ class AuthNotifier extends StateNotifier<app.AuthState> {
     switch (event.event) {
       case AuthChangeEvent.signedIn:
       case AuthChangeEvent.tokenRefreshed:
+      case AuthChangeEvent.initialSession:
         await _checkOnboardingStatus();
         break;
       case AuthChangeEvent.signedOut:
@@ -75,8 +78,23 @@ class AuthNotifier extends StateNotifier<app.AuthState> {
       }
     } catch (e, stackTrace) {
       print('[AuthNotifier] Check onboarding status failed: $e\n$stackTrace');
-      // Profile might not exist yet for brand new users
-      state = state.copyWith(status: app.AuthStatus.onboarding, errorMessage: null);
+      
+      ApiException? apiException;
+      if (e is DioException && e.error is ApiException) {
+        apiException = e.error as ApiException;
+      } else if (e is ApiException) {
+        apiException = e;
+      }
+
+      if (apiException is ProfileNotFoundException) {
+        state = state.copyWith(status: app.AuthStatus.onboarding, errorMessage: null);
+      } else if (apiException is UnauthenticatedException) {
+        state = state.copyWith(status: app.AuthStatus.unauthenticated, errorMessage: null);
+        _ref.read(authRepositoryProvider).signOut();
+      } else {
+        // Unexpected error (e.g. server down, offline) — default to onboarding setup
+        state = state.copyWith(status: app.AuthStatus.onboarding, errorMessage: null);
+      }
     }
   }
 

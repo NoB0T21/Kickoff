@@ -23,9 +23,19 @@ class ApiClient {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
-          final session = Supabase.instance.client.auth.currentSession;
+          var session = Supabase.instance.client.auth.currentSession;
           if (session != null) {
-            options.headers['Authorization'] = 'Bearer ${session.accessToken}';
+            if (session.isExpired) {
+              try {
+                final response = await Supabase.instance.client.auth.refreshSession();
+                session = response.session;
+              } catch (_) {
+                // If refresh fails, let it proceed with the old token to get 401
+              }
+            }
+            if (session != null) {
+              options.headers['Authorization'] = 'Bearer ${session.accessToken}';
+            }
           }
           return handler.next(options);
         },
