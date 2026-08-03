@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:kickoff/features/turfs/presentation/providers/turf_providers.dart';
 import 'package:kickoff/features/turfs/domain/turf_model.dart';
 import 'package:kickoff/core/theme/app_theme.dart';
+import '../../../core/widgets/skeleton.dart';
 
 class TurfListScreen extends ConsumerWidget {
   const TurfListScreen({super.key});
@@ -78,7 +79,7 @@ class TurfListScreen extends ConsumerWidget {
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: Colors.grey.shade700,
+                          color: Colors.grey.shade500,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -109,12 +110,12 @@ class TurfListScreen extends ConsumerWidget {
                       sport,
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
-                        color: isSelected ? Colors.white : Colors.grey.shade700,
+                        color: isSelected ? Colors.white : Colors.grey.shade500,
                       ),
                     ),
                     selected: isSelected,
                     selectedColor: AppTheme.primaryGreen,
-                    backgroundColor: Colors.grey.shade100,
+                    disabledColor: theme.colorScheme.onTertiary,
                     checkmarkColor: Colors.white,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                     onSelected: (selected) {
@@ -134,7 +135,7 @@ class TurfListScreen extends ConsumerWidget {
           // ── Turf Cards List ──
           Expanded(
             child: searchState.isLoading
-                ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen))
+                ? const TurfListSkeleton()
                 : searchState.error != null
                     ? _buildErrorView(searchState.error!, ref)
                     : searchState.turfs.isEmpty
@@ -154,8 +155,8 @@ class TurfListScreen extends ConsumerWidget {
                                 itemBuilder: (context, index) {
                                   if (index == searchState.turfs.length) {
                                     return const Padding(
-                                      padding: EdgeInsets.symmetric(vertical: 16),
-                                      child: Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen)),
+                                      padding: EdgeInsets.only(bottom: 16),
+                                      child: Skeleton(height: 180, borderRadius: 16),
                                     );
                                   }
 
@@ -268,10 +269,10 @@ class TurfListScreen extends ConsumerWidget {
                                                         Expanded(
                                                           child: Text(
                                                             turf.name,
-                                                            style: const TextStyle(
+                                                            style: TextStyle(
                                                               fontSize: 18,
                                                               fontWeight: FontWeight.w800,
-                                                              color: AppTheme.primaryGreen,
+                                                              color: theme.colorScheme.onBackground,
                                                             ),
                                                             maxLines: 1,
                                                             overflow: TextOverflow.ellipsis,
@@ -295,7 +296,7 @@ class TurfListScreen extends ConsumerWidget {
                                                         Expanded(
                                                           child: Text(
                                                             turf.locationName,
-                                                            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                                                            style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
                                                             maxLines: 1,
                                                             overflow: TextOverflow.ellipsis,
                                                           ),
@@ -308,7 +309,7 @@ class TurfListScreen extends ConsumerWidget {
                                                       children: turf.sports.map((sport) => Container(
                                                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                                         decoration: BoxDecoration(
-                                                          color: AppTheme.primaryGreen.withOpacity(0.08),
+                                                          color: AppTheme.accentGreen.withOpacity(0.12),
                                                           borderRadius: BorderRadius.circular(6),
                                                         ),
                                                         child: Text(
@@ -316,7 +317,7 @@ class TurfListScreen extends ConsumerWidget {
                                                           style: const TextStyle(
                                                             fontSize: 11,
                                                             fontWeight: FontWeight.w800,
-                                                            color: AppTheme.primaryGreen,
+                                                            color: AppTheme.accentGreen,
                                                           ),
                                                         ),
                                                       )).toList(),

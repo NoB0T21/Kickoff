@@ -21,6 +21,7 @@ class AppTheme {
         onSecondary: Colors.white,
         onBackground: Color(0xFF212529),
         onSurface: Color(0xFF212529),
+        onTertiary: Color.fromARGB(255, 229, 227, 227),
       ),
       scaffoldBackgroundColor: lightBg,
       appBarTheme: const AppBarTheme(
@@ -56,7 +57,7 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: const ColorScheme.dark(
-        primary: primaryGreen,
+        primary: Colors.green,
         secondary: accentGreen,
         background: darkBg,
         surface: surfaceDark,
@@ -64,6 +65,7 @@ class AppTheme {
         onSecondary: Colors.white,
         onBackground: Color(0xFFE9ECEF),
         onSurface: Color(0xFFE9ECEF),
+        onTertiary: Color.fromARGB(255, 46, 46, 46),
       ),
       scaffoldBackgroundColor: darkBg,
       appBarTheme: const AppBarTheme(
@@ -79,7 +81,7 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: primaryGreen,
+          backgroundColor: Colors.green,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),

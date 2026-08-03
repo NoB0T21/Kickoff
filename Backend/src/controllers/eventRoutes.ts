@@ -129,6 +129,14 @@ function handleError(error: any, reply: any) {
       },
     });
   }
+  if (msg === 'TIME_CONFLICT') {
+    return reply.code(409).send({
+      error: {
+        code: 'TIME_CONFLICT',
+        message: 'You have already joined or hosted another match at this timing.',
+      },
+    });
+  }
   if (msg === 'HOST_CANNOT_LEAVE') {
     return reply.code(403).send({
       error: {

@@ -147,12 +147,18 @@ final bookingProvider = StateNotifierProvider<BookingNotifier, AsyncValue<Bookin
 
 // Fetch user's bookings directly via Supabase client (leveraging RLS)
 final userBookingsProvider = FutureProvider.autoDispose<List<BookingModel>>((ref) async {
+  // Watch auth state to invalidate cache and re-run when session changes
+  ref.watch(authStateProvider);
+
   final supabase = Supabase.instance.client;
+  final currentUserId = supabase.auth.currentUser?.id;
+  if (currentUserId == null) return <BookingModel>[];
   
   // Joins bookings with turfs details and associated events (if any)
   final response = await supabase
       .from('bookings')
       .select('*, turfs(*), events(id, status)')
+      .eq('user_id', currentUserId)
       .order('created_at', ascending: false);
 
   final List<dynamic> list = response as List<dynamic>;

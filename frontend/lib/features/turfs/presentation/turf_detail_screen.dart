@@ -117,12 +117,12 @@ class _TurfDetailScreenState extends ConsumerState<TurfDetailScreen> {
                         children: turf.sports.map((sport) => Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: AppTheme.primaryGreen.withOpacity(0.08),
+                            color: AppTheme.accentGreen.withOpacity(0.12),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
                             sport,
-                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppTheme.primaryGreen),
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppTheme.accentGreen),
                           ),
                         )).toList(),
                       ),
@@ -140,7 +140,7 @@ class _TurfDetailScreenState extends ConsumerState<TurfDetailScreen> {
                       Expanded(
                         child: Text(
                           turf.locationName,
-                          style: TextStyle(fontSize: 14, color: Colors.grey.shade700, fontWeight: FontWeight.w600),
+                          style: TextStyle(fontSize: 14, color: Colors.grey.shade500, fontWeight: FontWeight.w600),
                         ),
                       ),
                     ],
@@ -152,12 +152,12 @@ class _TurfDetailScreenState extends ConsumerState<TurfDetailScreen> {
                       const SizedBox(width: 6),
                       Text(
                         "Open: ${turf.openHour.toString().padLeft(2, '0')}:00 - ${turf.closeHour.toString().padLeft(2, '0')}:00",
-                        style: TextStyle(fontSize: 14, color: Colors.grey.shade700, fontWeight: FontWeight.w600),
+                        style: TextStyle(fontSize: 14, color: Colors.grey.shade500, fontWeight: FontWeight.w600),
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
-                  const Text('About Arena', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppTheme.primaryGreen)),
+                  const Text('About Arena', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppTheme.accentGreen)),
                   const SizedBox(height: 6),
                   Text(
                     turf.description ?? 'A premium sports arena equipped with modern floodlights, high-grade synthetic turf, and player amenities.',
@@ -166,7 +166,7 @@ class _TurfDetailScreenState extends ConsumerState<TurfDetailScreen> {
                   const Divider(height: 32),
                   
                   // ── Date Carousel ──
-                  const Text('Select Date', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppTheme.primaryGreen)),
+                  const Text('Select Date', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppTheme.accentGreen)),
                   const SizedBox(height: 10),
                   SizedBox(
                     height: 70,
@@ -189,10 +189,10 @@ class _TurfDetailScreenState extends ConsumerState<TurfDetailScreen> {
                             child: Container(
                               width: 56,
                               decoration: BoxDecoration(
-                                color: isSelected ? AppTheme.primaryGreen : Colors.grey.shade100,
+                                color: isSelected ? AppTheme.primaryGreen : theme.colorScheme.onTertiary,
                                 borderRadius: BorderRadius.circular(14),
                                 border: Border.all(
-                                  color: isSelected ? AppTheme.primaryGreen : Colors.grey.shade200,
+                                  color: isSelected ? AppTheme.primaryGreen : theme.colorScheme.onTertiary,
                                 ),
                               ),
                               child: Center(
@@ -203,7 +203,7 @@ class _TurfDetailScreenState extends ConsumerState<TurfDetailScreen> {
                                     fontSize: 13,
                                     height: 1.3,
                                     fontWeight: FontWeight.w700,
-                                    color: isSelected ? Colors.white : Colors.grey.shade800,
+                                    color: isSelected ? Colors.white : theme.colorScheme.onBackground,
                                   ),
                                 ),
                               ),
@@ -216,7 +216,7 @@ class _TurfDetailScreenState extends ConsumerState<TurfDetailScreen> {
                   const SizedBox(height: 24),
                   
                   // ── Slots Section ──
-                  const Text('Available Slots', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppTheme.primaryGreen)),
+                  const Text('Available Slots', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppTheme.accentGreen)),
                   const SizedBox(height: 12),
                 ],
               ),
@@ -258,17 +258,17 @@ class _TurfDetailScreenState extends ConsumerState<TurfDetailScreen> {
                       final now = DateTime.now();
                       final isPastSlot = isToday && (slot.startHour <= now.hour);
                       
-                      Color cardColor = Colors.white;
-                      Color borderColor = Colors.green.shade600;
+                      Color cardColor = theme.colorScheme.onTertiary;
+                      Color borderColor = Colors.green;
                       Widget slotIcon = const SizedBox.shrink();
-                      Color textColor = Colors.green.shade800;
+                      Color textColor = theme.colorScheme.onBackground;
 
                       if (isBooked || isPastSlot) {
-                        cardColor = Colors.grey.shade100;
-                        borderColor = Colors.grey.shade300;
-                        textColor = Colors.grey.shade500;
+                        cardColor = theme.colorScheme.onTertiary;
+                        borderColor = theme.colorScheme.onTertiary;
+                        textColor = Colors.grey.shade600;
                         if (isPastSlot) {
-                          slotIcon = Icon(Icons.block, size: 12, color: Colors.grey.shade400);
+                          slotIcon = Icon(Icons.block, size: 12, color: Colors.grey.shade500);
                         }
                       } else if (isLocked) {
                         cardColor = Colors.amber.shade50;
@@ -387,7 +387,7 @@ class _TurfDetailScreenState extends ConsumerState<TurfDetailScreen> {
                       const SizedBox(height: 2),
                       Text(
                         "Total: ₹${(turf.hourlyRate * _selectedSlotIds.length).toStringAsFixed(0)}",
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppTheme.primaryGreen),
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppTheme.accentGreen),
                       ),
                     ],
                   ),

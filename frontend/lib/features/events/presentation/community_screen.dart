@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:kickoff/core/theme/app_theme.dart';
 import 'package:kickoff/features/auth/presentation/providers/auth_providers.dart';
+import '../../../core/widgets/skeleton.dart';
 import 'package:kickoff/features/profile/presentation/providers/profile_providers.dart';
 import 'package:kickoff/features/events/domain/event_model.dart';
 import 'package:kickoff/features/events/presentation/providers/event_providers.dart';
@@ -217,8 +218,8 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> with SingleTi
         ),
         bottom: TabBar(
           controller: _tabController,
-          indicatorColor: AppTheme.primaryGreen,
-          labelColor: AppTheme.primaryGreen,
+          indicatorColor: AppTheme.accentGreen,
+          labelColor: AppTheme.accentGreen,
           unselectedLabelColor: Colors.grey.shade500,
           labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
           tabs: const [
@@ -234,7 +235,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> with SingleTi
           RefreshIndicator(
             onRefresh: () => ref.read(eventListProvider.notifier).search(),
             child: eventsState.isLoading && eventsState.events.isEmpty
-                ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen))
+                ? const EventListSkeleton()
                 : eventsState.error != null
                     ? _buildErrorView(eventsState.error!)
                     : eventsState.events.isEmpty
@@ -330,7 +331,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> with SingleTi
               const SizedBox(height: 12),
               Text(
                 event.title,
-                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Colors.black87),
+                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
               ),
               if (event.description != null && event.description!.isNotEmpty) ...[
                 const SizedBox(height: 4),
@@ -338,7 +339,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> with SingleTi
                   event.description!,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
                 ),
               ],
               const Divider(height: 24),
@@ -386,7 +387,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> with SingleTi
 
   Widget _buildSearchResultsList() {
     if (_isSearching) {
-      return const Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen));
+      return const PlayerListSkeleton();
     }
 
     if (_searchError.isNotEmpty) {
@@ -409,7 +410,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> with SingleTi
 
   Widget _buildRecommendationsList() {
     if (_isLoadingRecommendations) {
-      return const Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen));
+      return const PlayerListSkeleton();
     }
 
     if (_recError.isNotEmpty) {

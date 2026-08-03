@@ -5,6 +5,7 @@ import 'package:kickoff/features/bookings/presentation/providers/booking_provide
 import 'package:kickoff/features/bookings/domain/booking_model.dart';
 import 'package:kickoff/features/turfs/domain/turf_model.dart';
 import 'package:kickoff/core/theme/app_theme.dart';
+import '../../../core/widgets/skeleton.dart';
 
 class MyBookingsScreen extends ConsumerWidget {
   const MyBookingsScreen({super.key});
@@ -139,7 +140,7 @@ class MyBookingsScreen extends ConsumerWidget {
                                 style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w800,
-                                  color: AppTheme.primaryGreen,
+                                  color: AppTheme.accentGreen,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -168,11 +169,11 @@ class MyBookingsScreen extends ConsumerWidget {
                         // Details: Date, Time, Price
                         Row(
                           children: [
-                            Icon(Icons.calendar_today_outlined, size: 16, color: Colors.grey.shade600),
+                            Icon(Icons.calendar_today_outlined, size: 16, color: Colors.grey.shade500),
                             const SizedBox(width: 8),
                             Text(
                               booking.slotDate,
-                              style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey.shade800),
+                              style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey.shade600),
                             ),
                             const Spacer(),
                             Text(
@@ -188,11 +189,11 @@ class MyBookingsScreen extends ConsumerWidget {
                         const SizedBox(height: 8),
                         Row(
                           children: [
-                            Icon(Icons.access_time_outlined, size: 16, color: Colors.grey.shade600),
+                            Icon(Icons.access_time_outlined, size: 16, color: Colors.grey.shade500),
                             const SizedBox(width: 8),
                             Text(
                               _formatHours(booking.hours),
-                              style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey.shade800),
+                              style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey.shade600),
                             ),
                           ],
                         ),
@@ -200,12 +201,12 @@ class MyBookingsScreen extends ConsumerWidget {
                           const SizedBox(height: 8),
                           Row(
                             children: [
-                              Icon(Icons.location_on_outlined, size: 16, color: Colors.grey.shade600),
+                              Icon(Icons.location_on_outlined, size: 16, color: Colors.grey.shade500),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   turf.locationName,
-                                  style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                                  style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -293,7 +294,7 @@ class MyBookingsScreen extends ConsumerWidget {
             ),
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen)),
+        loading: () => const BookingListSkeleton(),
         error: (err, _) => Center(
           child: Padding(
             padding: const EdgeInsets.all(24),

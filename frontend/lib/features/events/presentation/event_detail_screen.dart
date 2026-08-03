@@ -103,7 +103,7 @@ class EventDetailScreen extends ConsumerWidget {
                       title: 'Team A',
                       members: teamA,
                       color: Colors.blue.shade700,
-                      bgColor: Colors.blue.shade50,
+                      bgColor: Colors.blue.shade100,
                       isHost: isHost,
                       eventStatus: event.status,
                     ),
@@ -115,7 +115,7 @@ class EventDetailScreen extends ConsumerWidget {
                       title: 'Team B',
                       members: teamB,
                       color: Colors.red.shade700,
-                      bgColor: Colors.red.shade50,
+                      bgColor: Colors.red.shade100,
                       isHost: isHost,
                       eventStatus: event.status,
                     ),
@@ -127,7 +127,7 @@ class EventDetailScreen extends ConsumerWidget {
                       title: 'Unassigned Players',
                       members: unassigned,
                       color: Colors.grey.shade700,
-                      bgColor: Colors.grey.shade100,
+                      bgColor: Colors.grey.shade200,
                       isHost: isHost,
                       eventStatus: event.status,
                     ),
@@ -191,7 +191,6 @@ class EventDetailScreen extends ConsumerWidget {
         boxShadow: [
           BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4)),
         ],
-        border: Border.all(color: Colors.grey.shade100),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -228,7 +227,7 @@ class EventDetailScreen extends ConsumerWidget {
             const SizedBox(height: 8),
             Text(
               event.description!,
-              style: TextStyle(color: Colors.grey.shade600, height: 1.4, fontSize: 13),
+              style: TextStyle(color: Colors.grey.shade500, height: 1.4, fontSize: 13),
             ),
           ],
           const Divider(height: 24),
@@ -259,7 +258,7 @@ class EventDetailScreen extends ConsumerWidget {
         Expanded(
           child: Text(
             value,
-            style: TextStyle(color: color ?? Colors.black87, fontSize: 13, fontWeight: FontWeight.w700),
+            style: TextStyle(color: color ?? Colors.grey.shade700, fontSize: 13, fontWeight: FontWeight.w700),
             overflow: TextOverflow.ellipsis,
           ),
         ),
@@ -420,8 +419,8 @@ class EventDetailScreen extends ConsumerWidget {
         Container(
           width: double.infinity,
           decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border.all(color: Colors.grey.shade200),
+            color: Theme.of(context).colorScheme.onTertiary,
+            border: Border.all(color: Theme.of(context).colorScheme.onTertiary),
             borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
           ),
           child: members.isEmpty
@@ -448,10 +447,10 @@ class EventDetailScreen extends ConsumerWidget {
                       dense: true,
                       leading: CircleAvatar(
                         radius: 16,
-                        backgroundColor: AppTheme.primaryGreen.withOpacity(0.1),
+                        backgroundColor: AppTheme.accentGreen.withOpacity(0.3),
                         child: Text(
                           displayName.isNotEmpty ? displayName[0].toUpperCase() : 'A',
-                          style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryGreen, fontSize: 12),
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.accentGreen, fontSize: 12),
                         ),
                       ),
                       title: Row(
@@ -493,7 +492,6 @@ class EventDetailScreen extends ConsumerWidget {
                                 ),
                                 // Delete member option
                                 if (!member.isOfficial) ...[
-                                  const SizedBox(width: 8),
                                   IconButton(
                                     icon: const Icon(Icons.close, size: 16, color: Colors.red),
                                     onPressed: () async {
@@ -515,11 +513,10 @@ class EventDetailScreen extends ConsumerWidget {
   Widget _buildHostAdminPanel(BuildContext context, WidgetRef ref, EventModel event) {
     return Card(
       elevation: 0,
-      color: Colors.grey.shade50,
+      color: Theme.of(context).colorScheme.onTertiary,
       borderOnForeground: true,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.grey.shade200),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -528,7 +525,7 @@ class EventDetailScreen extends ConsumerWidget {
           children: [
             const Text(
               'Host Administration',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
             ),
             const SizedBox(height: 16),
             Row(
