@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { Readable } from 'stream';
 import { authGuard } from '../middleware/authGuard.js';
 import { bookingService } from '../services/bookingService.js';
+import { bookingRepository } from '../repositories/bookingRepository.js';
 import { env } from '../config/env.js';
 import {
   LockSlotsBody,
@@ -273,6 +274,56 @@ export async function bookingRoutes(server: FastifyInstance) {
         }
         throw error;
       }
+    }
+  );
+
+  /**
+   * GET /api/bookings
+   * Authenticated — Retrieve user bookings.
+   */
+  server.get(
+    '/api/bookings',
+    {
+      onRequest: [authGuard],
+    },
+    async (request, reply) => {
+      const bookings = await bookingRepository.findByUserId(request.userId);
+      return reply.code(200).send(bookings);
+    }
+  );
+
+  /**
+   * GET /api/bookings/:id
+   * Authenticated — Retrieve details of a single booking (including turfs).
+   */
+  server.get<{ Params: BookingIdParamsType }>(
+    '/api/bookings/:id',
+    {
+      onRequest: [authGuard],
+      schema: {
+        params: BookingIdParams,
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params;
+      const booking = await bookingRepository.findByIdWithTurf(id);
+      if (!booking) {
+        return reply.code(404).send({
+          error: {
+            code: 'BOOKING_NOT_FOUND',
+            message: 'The requested booking was not found.',
+          },
+        });
+      }
+      if (booking.user_id !== request.userId) {
+        return reply.code(403).send({
+          error: {
+            code: 'FORBIDDEN',
+            message: 'You do not own this booking.',
+          },
+        });
+      }
+      return reply.code(200).send(booking);
     }
   );
 }

@@ -35,9 +35,7 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
 
-  # Supabase — used ONLY for Auth (login/signup/OAuth/token management).
-  # All data operations go through the Fastify backend API.
-  supabase_flutter: ^2.9.0
+  shared_preferences: ^2.2.0
 
   # State management
   flutter_riverpod: ^2.6.1

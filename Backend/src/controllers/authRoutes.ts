@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { supabaseAdmin } from '../config/supabase.js';
 import { pool } from '../config/db.js';
 import { queueEmail } from '../services/emailService.js';
+import { authGuard } from '../middleware/authGuard.js';
 import {
   ForgotPasswordBody,
   ForgotPasswordBodyType,
@@ -11,6 +12,14 @@ import {
   SignupOtpBodyType,
   VerifyOtpBody,
   VerifyOtpBodyType,
+  LoginBody,
+  LoginBodyType,
+  RefreshBody,
+  RefreshBodyType,
+  GoogleLoginBody,
+  GoogleLoginBodyType,
+  AppleLoginBody,
+  AppleLoginBodyType,
 } from '../schemas/profileSchemas.js';
 
 export async function authRoutes(server: FastifyInstance) {
@@ -177,6 +186,139 @@ export async function authRoutes(server: FastifyInstance) {
         });
       }
 
+      return reply.code(200).send({ success: true });
+    }
+  );
+
+  /**
+   * POST /api/auth/login
+   * Authenticates user using email and password against Supabase.
+   */
+  server.post<{ Body: LoginBodyType }>(
+    '/api/auth/login',
+    { schema: { body: LoginBody } },
+    async (request, reply) => {
+      const { email, password } = request.body;
+      const { data, error } = await supabaseAdmin.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error || !data.session) {
+        return reply.code(400).send({
+          error: {
+            code: 'INVALID_CREDENTIALS',
+            message: error?.message || 'Invalid email or password',
+          },
+        });
+      }
+
+      return reply.code(200).send({
+        session: data.session,
+        user: data.user,
+      });
+    }
+  );
+
+  /**
+   * POST /api/auth/refresh
+   * Refreshes JWT using a refresh token.
+   */
+  server.post<{ Body: RefreshBodyType }>(
+    '/api/auth/refresh',
+    { schema: { body: RefreshBody } },
+    async (request, reply) => {
+      const { refresh_token } = request.body;
+      const { data, error } = await supabaseAdmin.auth.refreshSession({
+        refresh_token,
+      });
+
+      if (error || !data.session) {
+        return reply.code(400).send({
+          error: {
+            code: 'INVALID_REFRESH_TOKEN',
+            message: error?.message || 'Invalid or expired refresh token',
+          },
+        });
+      }
+
+      return reply.code(200).send({
+        session: data.session,
+        user: data.user,
+      });
+    }
+  );
+
+  /**
+   * POST /api/auth/google-login
+   * Handles Google OAuth token exchange.
+   */
+  server.post<{ Body: GoogleLoginBodyType }>(
+    '/api/auth/google-login',
+    { schema: { body: GoogleLoginBody } },
+    async (request, reply) => {
+      const { id_token, access_token } = request.body;
+      const { data, error } = await supabaseAdmin.auth.signInWithIdToken({
+        provider: 'google',
+        token: id_token,
+        access_token: access_token,
+      });
+
+      if (error || !data.session) {
+        return reply.code(400).send({
+          error: {
+            code: 'OAUTH_LOGIN_FAILED',
+            message: error?.message || 'Google authentication failed',
+          },
+        });
+      }
+
+      return reply.code(200).send({
+        session: data.session,
+        user: data.user,
+      });
+    }
+  );
+
+  /**
+   * POST /api/auth/apple-login
+   * Handles Apple OAuth token exchange.
+   */
+  server.post<{ Body: AppleLoginBodyType }>(
+    '/api/auth/apple-login',
+    { schema: { body: AppleLoginBody } },
+    async (request, reply) => {
+      const { id_token } = request.body;
+      const { data, error } = await supabaseAdmin.auth.signInWithIdToken({
+        provider: 'apple',
+        token: id_token,
+      });
+
+      if (error || !data.session) {
+        return reply.code(400).send({
+          error: {
+            code: 'OAUTH_LOGIN_FAILED',
+            message: error?.message || 'Apple authentication failed',
+          },
+        });
+      }
+
+      return reply.code(200).send({
+        session: data.session,
+        user: data.user,
+      });
+    }
+  );
+
+  /**
+   * POST /api/auth/logout
+   * Logs out the user.
+   */
+  server.post(
+    '/api/auth/logout',
+    { onRequest: [authGuard] },
+    async (request, reply) => {
+      await supabaseAdmin.auth.admin.signOut(request.userId);
       return reply.code(200).send({ success: true });
     }
   );

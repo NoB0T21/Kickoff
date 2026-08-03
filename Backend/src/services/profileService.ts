@@ -63,9 +63,29 @@ export const profileService = {
 
   /**
    * Generate a signed upload URL for the user's avatar.
-   * The user uploads directly to Supabase Storage using this URL.
+   * Also deletes the user's old avatar from storage if it exists,
+   * and returns the pre-constructed public URL.
    */
-  async generateAvatarUploadUrl(userId: string): Promise<{ signedUrl: string; path: string }> {
+  async generateAvatarUploadUrl(userId: string): Promise<{ signedUrl: string; path: string; publicUrl: string }> {
+    // 1. Delete old avatar if present
+    try {
+      const profile = await profileRepository.findById(userId);
+      if (profile?.avatar_url) {
+        const marker = '/storage/v1/object/public/avatars/';
+        const markerIndex = profile.avatar_url.indexOf(marker);
+        if (markerIndex !== -1) {
+          const oldPath = decodeURIComponent(profile.avatar_url.substring(markerIndex + marker.length));
+          await supabaseAdmin.storage
+            .from('avatars')
+            .remove([oldPath]);
+          console.log(`[profileService] Deleted old avatar in storage: ${oldPath}`);
+        }
+      }
+    } catch (e) {
+      console.error('[profileService] Failed to delete old avatar:', e);
+    }
+
+    // 2. Generate signed upload URL
     const path = `${userId}/avatar-${Date.now()}`;
 
     const { data, error } = await supabaseAdmin.storage
@@ -76,9 +96,21 @@ export const profileService = {
       throw new AppError(500, 'INTERNAL_ERROR', 'Failed to generate upload URL.');
     }
 
+    const { data: publicUrlData } = supabaseAdmin.storage
+      .from('avatars')
+      .getPublicUrl(path);
+
     return {
       signedUrl: data.signedUrl,
       path: data.path,
+      publicUrl: publicUrlData.publicUrl,
     };
+  },
+
+  /**
+   * Search profiles matching a query.
+   */
+  async searchProfiles(query: string, limit = 25): Promise<ProfileRow[]> {
+    return profileRepository.searchProfiles(query, limit);
   },
 };

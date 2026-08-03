@@ -1,10 +1,30 @@
 import 'package:dio/dio.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/constants.dart';
 import 'api_exceptions.dart';
 
+bool isTokenExpired(String token) {
+  try {
+    final parts = token.split('.');
+    if (parts.length != 3) return true;
+    final payload = parts[1];
+    var normalized = base64Url.normalize(payload);
+    final resp = utf8.decode(base64Url.decode(normalized));
+    final map = json.decode(resp) as Map<String, dynamic>;
+    if (map.containsKey('exp')) {
+      final exp = map['exp'] as int;
+      final expiryDate = DateTime.fromMillisecondsSinceEpoch(exp * 1000);
+      return expiryDate.isBefore(DateTime.now().add(const Duration(seconds: 60)));
+    }
+  } catch (e) {
+    print('[isTokenExpired] Error parsing JWT: $e');
+  }
+  return true;
+}
+
 /// Dio HTTP client configured for the Fastify backend API.
-/// Auto-attaches the Supabase JWT token to every request.
+/// Auto-attaches the JWT token to every request.
 class ApiClient {
   late final Dio _dio;
 
@@ -19,22 +39,47 @@ class ApiClient {
       ),
     );
 
-    // Interceptor: auto-attach JWT token from Supabase Auth session
+    // Interceptor: auto-attach JWT token
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
-          var session = Supabase.instance.client.auth.currentSession;
-          if (session != null) {
-            if (session.isExpired) {
+          if (options.path == '/api/auth/refresh' ||
+              options.path == '/api/auth/login' ||
+              options.path == '/api/auth/signup-otp' ||
+              options.path == '/api/auth/verify-signup-otp') {
+            return handler.next(options);
+          }
+
+          final prefs = await SharedPreferences.getInstance();
+          var accessToken = prefs.getString('access_token');
+          final refreshToken = prefs.getString('refresh_token');
+
+          if (accessToken != null) {
+            if (isTokenExpired(accessToken) && refreshToken != null) {
               try {
-                final response = await Supabase.instance.client.auth.refreshSession();
-                session = response.session;
-              } catch (_) {
-                // If refresh fails, let it proceed with the old token to get 401
+                final refreshDio = Dio(BaseOptions(baseUrl: AppConstants.apiBaseUrl));
+                final refreshResponse = await refreshDio.post(
+                  '/api/auth/refresh',
+                  data: {'refresh_token': refreshToken},
+                );
+
+                final data = refreshResponse.data as Map<String, dynamic>;
+                final session = data['session'] as Map<String, dynamic>;
+                accessToken = session['access_token'] as String;
+                final newRefreshToken = session['refresh_token'] as String;
+
+                await prefs.setString('access_token', accessToken);
+                await prefs.setString('refresh_token', newRefreshToken);
+              } catch (e) {
+                print('[api_client] Auto-refresh failed: $e');
+                await prefs.remove('access_token');
+                await prefs.remove('refresh_token');
+                accessToken = null;
               }
             }
-            if (session != null) {
-              options.headers['Authorization'] = 'Bearer ${session.accessToken}';
+
+            if (accessToken != null) {
+              options.headers['Authorization'] = 'Bearer $accessToken';
             }
           }
           return handler.next(options);

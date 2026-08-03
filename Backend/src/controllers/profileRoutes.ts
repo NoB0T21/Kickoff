@@ -1,6 +1,8 @@
 import { FastifyInstance } from 'fastify';
 import { authGuard } from '../middleware/authGuard.js';
 import { profileService } from '../services/profileService.js';
+import { followRepository } from '../repositories/followRepository.js';
+import { Type } from '@sinclair/typebox';
 import {
   UpdateProfileBody,
   UpdateProfileBodyType,
@@ -98,5 +100,44 @@ export async function profileRoutes(server: FastifyInstance) {
       const result = await profileService.generateAvatarUploadUrl(request.userId);
       return reply.code(200).send(result);
     },
+  );
+
+  /**
+   * GET /api/profiles
+   * Authenticated — search user profiles.
+   */
+  server.get<{ Querystring: { query: string } }>(
+    '/api/profiles',
+    {
+      onRequest: [authGuard],
+      schema: {
+        querystring: Type.Object({
+          query: Type.String({ minLength: 1 }),
+        }),
+      },
+    },
+    async (request, reply) => {
+      const { query } = request.query;
+      const profiles = await profileService.searchProfiles(query);
+      return reply.code(200).send(profiles);
+    }
+  );
+
+  /**
+   * GET /api/profiles/:id/is-following
+   * Authenticated — check if the current user follows the target user.
+   */
+  server.get<{ Params: ProfileIdParamsType }>(
+    '/api/profiles/:id/is-following',
+    {
+      onRequest: [authGuard],
+      schema: {
+        params: ProfileIdParams,
+      },
+    },
+    async (request, reply) => {
+      const isFollowing = await followRepository.isFollowing(request.userId, request.params.id);
+      return reply.code(200).send({ isFollowing });
+    }
   );
 }

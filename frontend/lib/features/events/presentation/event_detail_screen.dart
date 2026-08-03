@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:kickoff/features/profile/presentation/providers/profile_providers.dart';
 import 'package:kickoff/core/theme/app_theme.dart';
 import 'package:kickoff/features/events/domain/event_model.dart';
 import 'package:kickoff/features/events/domain/event_member_model.dart';
@@ -18,7 +18,7 @@ class EventDetailScreen extends ConsumerWidget {
     final rosterAsync = ref.watch(eventRosterProvider(eventId));
     final actionState = ref.watch(eventActionProvider);
 
-    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    final currentUserId = ref.watch(profileProvider).profile?.id;
 
     return Scaffold(
       appBar: AppBar(
@@ -219,6 +219,22 @@ class EventDetailScreen extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 16),
+          if (event.status == EventStatus.live || event.status == EventStatus.completed) ...[
+            Center(
+              child: Column(
+                children: [
+                  Text(
+                    event.sport == 'Cricket'
+                        ? '${event.teamAScore}/${event.teamAWickets} - ${event.teamBScore}/${event.teamBWickets}'
+                        : '${event.teamAScore} - ${event.teamBScore}',
+                    style: const TextStyle(fontSize: 48, fontWeight: FontWeight.w900, color: AppTheme.primaryGreen),
+                  ),
+                  const Text('TEAM A  vs  TEAM B', style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            ),
+          ],
           Text(
             event.title,
             style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
@@ -275,8 +291,73 @@ class EventDetailScreen extends ConsumerWidget {
     int currentCount,
     EventActionState actionState,
   ) {
-    if (event.status != EventStatus.scheduled) {
-      return const SizedBox.shrink();
+    if (event.status == EventStatus.live) {
+      return Column(
+        children: [
+          if (isHost) ...[
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.teal.shade700,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                icon: const Icon(Icons.sports, color: Colors.white),
+                label: const Text('Manage Live Match', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                onPressed: () => context.push('/events/${event.id}/live'),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppTheme.primaryGreen, width: 1.5),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: const Icon(Icons.analytics, color: AppTheme.primaryGreen),
+              label: const Text('View Live Scoreboard', style: TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold)),
+              onPressed: () => context.push('/events/${event.id}/scoreboard'),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (event.status == EventStatus.completed) {
+      return SizedBox(
+        width: double.infinity,
+        height: 48,
+        child: ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppTheme.primaryGreen,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          icon: const Icon(Icons.emoji_events, color: Colors.white),
+          label: const Text('View Match Scoreboard & Stats', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          onPressed: () => context.push('/events/${event.id}/scoreboard'),
+        ),
+      );
+    }
+
+    if (event.status == EventStatus.cancelled) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade200,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Center(
+          child: Text(
+            'This match has been cancelled.',
+            style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+          ),
+        ),
+      );
     }
 
     final actionNotifier = ref.read(eventActionProvider.notifier);
@@ -470,7 +551,7 @@ class EventDetailScreen extends ConsumerWidget {
                         ],
                       ),
                       subtitle: member.username != null ? Text('@${member.username}', style: const TextStyle(fontSize: 11)) : null,
-                      trailing: isHost && eventStatus == EventStatus.scheduled
+                      trailing: isHost && eventStatus != EventStatus.completed && eventStatus != EventStatus.cancelled
                           ? Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -651,8 +732,24 @@ class EventDetailScreen extends ConsumerWidget {
               onPressed: () async {
                 final name = controller.text.trim();
                 if (name.isNotEmpty) {
-                  await ref.read(eventActionProvider.notifier).addGuest(eventId, name);
-                  if (context.mounted) Navigator.pop(context);
+                  Navigator.pop(context);
+                  final result = await ref.read(eventActionProvider.notifier).addGuest(eventId, name);
+                  if (result == null && context.mounted) {
+                    final state = ref.read(eventActionProvider);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(state.error ?? 'Failed to add guest player.'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  } else if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Guest player added successfully!'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
                 }
               },
               child: const Text('Add Guest', style: TextStyle(color: Colors.white)),

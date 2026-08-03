@@ -93,6 +93,9 @@ class MyBookingsScreen extends ConsumerWidget {
               itemBuilder: (context, index) {
                 final booking = bookings[index];
                 final turf = booking.turf;
+                final hasActiveEvent = booking.eventId != null &&
+                    booking.eventStatus != 'completed' &&
+                    booking.eventStatus != 'cancelled';
                 // Check if slot is expired (in the past)
                 bool isExpired = false;
                 try {
@@ -235,7 +238,7 @@ class MyBookingsScreen extends ConsumerWidget {
                                 ),
                                 const SizedBox(width: 12),
                               ],
-                              if (booking.eventId != null) ...[
+                              if (hasActiveEvent) ...[
                                 ElevatedButton.icon(
                                   onPressed: () {
                                     context.go('/events/${booking.eventId}');

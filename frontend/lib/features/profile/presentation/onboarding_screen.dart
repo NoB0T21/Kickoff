@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'package:kickoff/core/theme/app_theme.dart';
 import 'package:kickoff/features/auth/presentation/providers/auth_providers.dart';
 import 'package:kickoff/features/profile/presentation/providers/profile_providers.dart';
@@ -46,20 +46,24 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   @override
   void initState() {
     super.initState();
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user != null) {
-      final meta = user.userMetadata;
-      if (meta != null) {
-        final fullName = meta['full_name'] ?? meta['name'];
-        if (fullName is String && fullName.isNotEmpty) {
-          _fullNameController.text = fullName;
-        }
-        final avatar = meta['avatar_url'] ?? meta['picture'];
-        if (avatar is String && avatar.isNotEmpty) {
-          _avatarUrl = avatar;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final currentUser = await ref.read(authRepositoryProvider).currentUser;
+      if (currentUser != null) {
+        final meta = currentUser.userMetadata;
+        if (meta != null && mounted) {
+          setState(() {
+            final fullName = meta['full_name'] ?? meta['name'];
+            if (fullName is String && fullName.isNotEmpty) {
+              _fullNameController.text = fullName;
+            }
+            final avatar = meta['avatar_url'] ?? meta['picture'];
+            if (avatar is String && avatar.isNotEmpty) {
+              _avatarUrl = avatar;
+            }
+          });
         }
       }
-    }
+    });
   }
 
   @override

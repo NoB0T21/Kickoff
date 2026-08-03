@@ -110,4 +110,19 @@ export const profileRepository = {
       [userId],
     );
   },
+
+  /**
+   * Search profiles matching a query case-insensitively.
+   */
+  async searchProfiles(query: string, limit = 25): Promise<ProfileRow[]> {
+    const searchPattern = `%${query}%`;
+    const result = await pool.query(
+      `SELECT * FROM public.profiles 
+       WHERE (username ILIKE $1 OR full_name ILIKE $1) 
+         AND deleted_at IS NULL 
+       LIMIT $2`,
+      [searchPattern, limit]
+    );
+    return result.rows as ProfileRow[];
+  },
 };

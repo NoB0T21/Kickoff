@@ -20,6 +20,15 @@ class EventModel {
   final DateTime? checkedInAt;
   final DateTime createdAt;
   final String? turfName;
+  
+  // Live score fields
+  final int teamAScore;
+  final int teamBScore;
+  final int teamAWickets;
+  final int teamBWickets;
+  final int teamABalls;
+  final int teamBBalls;
+  final String currentBatting; // 'team_a' or 'team_b' or 'unassigned'
 
   EventModel({
     required this.id,
@@ -39,6 +48,13 @@ class EventModel {
     this.checkedInAt,
     required this.createdAt,
     this.turfName,
+    this.teamAScore = 0,
+    this.teamBScore = 0,
+    this.teamAWickets = 0,
+    this.teamBWickets = 0,
+    this.teamABalls = 0,
+    this.teamBBalls = 0,
+    this.currentBatting = 'team_a',
   });
 
   factory EventModel.fromJson(Map<String, dynamic> json) {
@@ -75,6 +91,13 @@ class EventModel {
       checkedInAt: json['checked_in_at'] != null ? DateTime.parse(json['checked_in_at'] as String) : null,
       createdAt: DateTime.parse(json['created_at'] as String),
       turfName: json['turf_name'] as String?,
+      teamAScore: json['team_a_score'] as int? ?? 0,
+      teamBScore: json['team_b_score'] as int? ?? 0,
+      teamAWickets: json['team_a_wickets'] as int? ?? 0,
+      teamBWickets: json['team_b_wickets'] as int? ?? 0,
+      teamABalls: json['team_a_balls'] as int? ?? 0,
+      teamBBalls: json['team_b_balls'] as int? ?? 0,
+      currentBatting: json['current_batting'] as String? ?? 'team_a',
     );
   }
 
@@ -97,6 +120,13 @@ class EventModel {
       'checked_in_at': checkedInAt?.toIso8601String(),
       'created_at': createdAt.toIso8601String(),
       'turf_name': turfName,
+      'team_a_score': teamAScore,
+      'team_b_score': teamBScore,
+      'team_a_wickets': teamAWickets,
+      'team_b_wickets': teamBWickets,
+      'team_a_balls': teamABalls,
+      'team_b_balls': teamBBalls,
+      'current_batting': currentBatting,
     };
   }
 }

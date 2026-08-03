@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'package:kickoff/core/theme/app_theme.dart';
 import 'package:kickoff/features/auth/presentation/providers/auth_providers.dart';
 import '../../../core/widgets/skeleton.dart';
@@ -43,7 +43,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> with SingleTi
   }
 
   Future<void> _loadRecommendations() async {
-    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    final currentUserId = ref.read(profileProvider).profile?.id;
     if (currentUserId == null) return;
 
     final apiClient = ref.read(apiClientProvider);
@@ -123,23 +123,15 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> with SingleTi
     });
 
     try {
-      final supabase = Supabase.instance.client;
-      final currentUserId = supabase.auth.currentUser?.id;
+      final currentUserId = ref.read(profileProvider).profile?.id;
+      final repo = ref.read(profileRepositoryProvider);
 
-      // Query profiles case-insensitively using Supabase Client
-      final response = await supabase
-          .from('profiles')
-          .select('*')
-          .or('username.ilike.%$query%,full_name.ilike.%$query%')
-          .limit(25);
-
-      final List<dynamic> data = response as List<dynamic>;
+      final response = await repo.searchProfiles(query);
 
       // Determine follow status for search results
       final List<Map<String, dynamic>> results = [];
-      for (final item in data) {
-        final profile = item as Map<String, dynamic>;
-        final profileId = profile['id'] as String;
+      for (final profile in response) {
+        final profileId = profile.id;
 
         if (profileId == currentUserId) continue; // Skip self
 
@@ -148,9 +140,9 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> with SingleTi
 
         results.add({
           'id': profileId,
-          'username': profile['username'],
-          'full_name': profile['full_name'],
-          'avatar_url': profile['avatar_url'],
+          'username': profile.username,
+          'full_name': profile.fullName,
+          'avatar_url': profile.avatarUrl,
           'is_following': isFollowing,
         });
       }

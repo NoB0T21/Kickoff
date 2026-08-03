@@ -9,6 +9,7 @@ import { registerRoutes } from './routes.js';
 import './workers/emailWorker.js';
 import './workers/reconciliationWorker.js';
 import './workers/eventWorker.js';
+import './workers/matchWorker.js';
 
 const server: FastifyInstance = Fastify({
   logger: true,

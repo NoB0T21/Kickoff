@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:kickoff/features/auth/presentation/providers/auth_providers.dart';
 import 'package:kickoff/features/events/domain/event_model.dart';
 import 'package:kickoff/features/events/domain/event_member_model.dart';
+import 'package:kickoff/features/events/domain/match_log_model.dart';
 import 'package:kickoff/core/network/api_exceptions.dart';
 
 // State model for event feed search filters
@@ -123,6 +124,14 @@ final eventRosterProvider = FutureProvider.autoDispose.family<List<EventMemberMo
   return list.map((item) => EventMemberModel.fromJson(item)).toList();
 });
 
+// Match logs timeline provider
+final matchLogsProvider = FutureProvider.autoDispose.family<List<MatchLogModel>, String>((ref, eventId) async {
+  final apiClient = ref.read(apiClientProvider);
+  final response = await apiClient.get('/api/events/$eventId/score/logs');
+  final List<dynamic> list = response.data as List<dynamic>;
+  return list.map((item) => MatchLogModel.fromJson(item)).toList();
+});
+
 // State model for action execution
 class EventActionState {
   final bool isLoading;
@@ -210,12 +219,17 @@ class EventActionNotifier extends StateNotifier<EventActionState> {
     }
   }
 
-  Future<EventMemberModel?> addGuest(String eventId, String guestName) async {
+  Future<EventMemberModel?> addGuest(String eventId, String guestName, {RosterTeam team = RosterTeam.unassigned}) async {
     state = EventActionState(isLoading: true);
     final apiClient = _ref.read(apiClientProvider);
+    String teamStr = 'unassigned';
+    if (team == RosterTeam.teamA) teamStr = 'team_a';
+    if (team == RosterTeam.teamB) teamStr = 'team_b';
+
     try {
       final response = await apiClient.post('/api/events/$eventId/roster/guest', data: {
         'guest_name': guestName,
+        'team': teamStr,
       });
       final member = EventMemberModel.fromJson(response.data as Map<String, dynamic>);
       state = EventActionState(isLoading: false, result: member);
@@ -251,7 +265,7 @@ class EventActionNotifier extends StateNotifier<EventActionState> {
     if (team == RosterTeam.teamB) teamStr = 'team_b';
 
     try {
-      await apiClient.dio.patch('/api/events/$eventId/roster/$memberId/team', data: {
+      await apiClient.dio.put('/api/events/$eventId/roster/$memberId/team', data: {
         'team': teamStr,
       });
       state = EventActionState(isLoading: false, result: true);
@@ -324,6 +338,51 @@ class EventActionNotifier extends StateNotifier<EventActionState> {
     } catch (e) {
       state = EventActionState(isLoading: false, error: _getErrorMessage(e));
       return false;
+    }
+  }
+
+  Future<bool> logScore(String eventId, String sport, Map<String, dynamic> details) async {
+    state = EventActionState(isLoading: true);
+    final apiClient = _ref.read(apiClientProvider);
+    try {
+      await apiClient.post('/api/events/$eventId/score/log', data: {
+        'sport': sport,
+        'details': details,
+      });
+      state = EventActionState(isLoading: false, result: true);
+      _ref.invalidate(eventDetailsProvider(eventId));
+      _ref.invalidate(matchLogsProvider(eventId));
+      return true;
+    } catch (e) {
+      state = EventActionState(isLoading: false, error: _getErrorMessage(e));
+      return false;
+    }
+  }
+
+  Future<Map<String, dynamic>?> settleMatch(
+    String eventId, {
+    required String winningTeam,
+    String? manOfTheMatchId,
+    List<Map<String, dynamic>>? playerStats,
+  }) async {
+    state = EventActionState(isLoading: true);
+    final apiClient = _ref.read(apiClientProvider);
+    try {
+      final response = await apiClient.post('/api/events/$eventId/settle', data: {
+        'winning_team': winningTeam,
+        if (manOfTheMatchId != null) 'man_of_the_match_id': manOfTheMatchId,
+        if (playerStats != null) 'player_stats': playerStats,
+      });
+      final res = response.data as Map<String, dynamic>;
+      state = EventActionState(isLoading: false, result: res);
+      _ref.invalidate(eventDetailsProvider(eventId));
+      _ref.invalidate(eventRosterProvider(eventId));
+      _ref.invalidate(matchLogsProvider(eventId));
+      _ref.read(eventListProvider.notifier).search();
+      return res;
+    } catch (e) {
+      state = EventActionState(isLoading: false, error: _getErrorMessage(e));
+      return null;
     }
   }
 }

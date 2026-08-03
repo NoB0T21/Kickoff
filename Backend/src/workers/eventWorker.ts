@@ -2,8 +2,8 @@ import { eventService } from '../services/eventService.js';
 
 console.log('[EventWorker] Initializing background autocomplete sweeps...');
 
-// Run autocomplete check every 60 seconds
-const AUTOCOMPLETE_INTERVAL_MS = 60000;
+// Run autocomplete check every 10 seconds
+const AUTOCOMPLETE_INTERVAL_MS = 10000;
 setInterval(async () => {
   try {
     const counts = await eventService.triggerAutoComplete();

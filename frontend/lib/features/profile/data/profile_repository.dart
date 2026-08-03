@@ -1,9 +1,7 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:http_parser/http_parser.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' hide MultipartFile;
 import 'package:kickoff/core/network/api_client.dart';
-import 'package:kickoff/core/constants/constants.dart';
 import 'package:kickoff/features/profile/domain/profile_model.dart';
 
 /// Profile repository — all data operations go through the backend API.
@@ -53,44 +51,20 @@ class ProfileRepository {
     return response.data['available'] as bool;
   }
 
-  /// Helper to extract storage path (e.g. "userId/avatar-timestamp") from a public URL.
-  String? _extractStoragePath(String url) {
-    const marker = '/storage/v1/object/public/avatars/';
-    final markerIndex = url.indexOf(marker);
-    if (markerIndex != -1) {
-      return Uri.decodeComponent(url.substring(markerIndex + marker.length));
-    }
-    return null;
-  }
+
 
   /// Upload an avatar image:
-  /// 1. Delete the old avatar from storage if any
-  /// 2. Get a signed upload URL from the backend
-  /// 3. Upload the file directly to Supabase Storage
-  /// 4. Return the public URL
+  /// 1. Get a signed upload URL and constructed public URL from backend (handles old avatar cleanup)
+  /// 2. Upload the file directly to Supabase Storage using the signed URL
+  /// 3. Return the public URL
   Future<String> uploadAvatar(File imageFile, {String? oldAvatarUrl}) async {
-    // Delete old avatar if present
-    if (oldAvatarUrl != null) {
-      try {
-        final oldPath = _extractStoragePath(oldAvatarUrl);
-        if (oldPath != null) {
-          await Supabase.instance.client.storage
-              .from(AppConstants.avatarsBucket)
-              .remove([oldPath]);
-          print('[ProfileRepository] Successfully deleted old avatar: $oldPath');
-        }
-      } catch (e, stackTrace) {
-        print('[ProfileRepository] Failed to delete old avatar: $e\n$stackTrace');
-      }
-    }
-
-    // Step 1: Get signed upload URL from backend
+    // Step 1: Get signed upload URL and public URL from backend
     final urlResponse = await _apiClient.post('/api/profiles/me/avatar-upload-url', data: {});
     final signedUrl = urlResponse.data['signedUrl'] as String;
-    final storagePath = urlResponse.data['path'] as String;
+    final publicUrl = urlResponse.data['publicUrl'] as String;
 
     print('[ProfileRepository] Received signedUrl: $signedUrl');
-    print('[ProfileRepository] Received storagePath: $storagePath');
+    print('[ProfileRepository] Received publicUrl: $publicUrl');
 
     // Step 2: Upload directly to Supabase Storage using the signed URL
     final dio = Dio();
@@ -120,9 +94,6 @@ class ProfileRepository {
     } catch (rawError) {
       print('[ProfileRepository] Raw binary upload failed: $rawError');
       if (rawError is DioException) {
-        print('[ProfileRepository] Raw binary upload DioError type: ${rawError.type}');
-        print('[ProfileRepository] Raw binary upload DioError message: ${rawError.message}');
-        print('[ProfileRepository] Raw binary upload DioError error: ${rawError.error}');
         print('[ProfileRepository] Raw binary upload DioError response: ${rawError.response}');
       }
       print('[ProfileRepository] Retrying with multipart/form-data...');
@@ -152,11 +123,6 @@ class ProfileRepository {
       }
     }
 
-    // Step 3: Construct the public URL
-    final publicUrl = Supabase.instance.client.storage
-        .from(AppConstants.avatarsBucket)
-        .getPublicUrl(storagePath);
-
     return publicUrl;
   }
 
@@ -173,5 +139,21 @@ class ProfileRepository {
   /// Unfollow a user.
   Future<void> unfollowUser(String userId) async {
     await _apiClient.post('/api/profiles/$userId/unfollow', data: {});
+  }
+
+  /// Search profiles matching a query.
+  Future<List<ProfileModel>> searchProfiles(String query) async {
+    final response = await _apiClient.get(
+      '/api/profiles',
+      queryParameters: {'query': query},
+    );
+    final List<dynamic> data = response.data as List<dynamic>;
+    return data.map((item) => ProfileModel.fromJson(item as Map<String, dynamic>)).toList();
+  }
+
+  /// Check if current user is following target user.
+  Future<bool> isFollowing(String targetUserId) async {
+    final response = await _apiClient.get('/api/profiles/$targetUserId/is-following');
+    return response.data['isFollowing'] as bool;
   }
 }

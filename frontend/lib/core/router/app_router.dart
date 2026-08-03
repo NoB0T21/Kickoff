@@ -17,6 +17,8 @@ import '../../features/bookings/presentation/booking_receipt_screen.dart';
 import '../../features/events/presentation/event_create_screen.dart';
 import '../../features/events/presentation/event_detail_screen.dart';
 import '../../features/events/presentation/event_invite_screen.dart';
+import '../../features/events/presentation/live_match_screen.dart';
+import '../../features/events/presentation/live_scoreboard_screen.dart';
 
 // (rest of imports)
 
@@ -160,6 +162,20 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final eventId = state.pathParameters['id'] ?? '';
           return EventDetailScreen(eventId: eventId);
+        },
+      ),
+      GoRoute(
+        path: '/events/:id/live',
+        builder: (context, state) {
+          final eventId = state.pathParameters['id'] ?? '';
+          return LiveMatchScreen(eventId: eventId);
+        },
+      ),
+      GoRoute(
+        path: '/events/:id/scoreboard',
+        builder: (context, state) {
+          final eventId = state.pathParameters['id'] ?? '';
+          return LiveScoreboardScreen(eventId: eventId);
         },
       ),
       GoRoute(

@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:kickoff/core/network/api_exceptions.dart';
@@ -145,22 +144,18 @@ final bookingProvider = StateNotifierProvider<BookingNotifier, AsyncValue<Bookin
   return BookingNotifier(ref);
 });
 
-// Fetch user's bookings directly via Supabase client (leveraging RLS)
+// Fetch user's bookings via backend API
 final userBookingsProvider = FutureProvider.autoDispose<List<BookingModel>>((ref) async {
   // Watch auth state to invalidate cache and re-run when session changes
   ref.watch(authStateProvider);
 
-  final supabase = Supabase.instance.client;
-  final currentUserId = supabase.auth.currentUser?.id;
-  if (currentUserId == null) return <BookingModel>[];
-  
-  // Joins bookings with turfs details and associated events (if any)
-  final response = await supabase
-      .from('bookings')
-      .select('*, turfs(*), events(id, status)')
-      .eq('user_id', currentUserId)
-      .order('created_at', ascending: false);
-
-  final List<dynamic> list = response as List<dynamic>;
-  return list.map((item) => BookingModel.fromJson(item)).toList();
+  final apiClient = ref.read(apiClientProvider);
+  try {
+    final response = await apiClient.get('/api/bookings');
+    final List<dynamic> list = response.data as List<dynamic>;
+    return list.map((item) => BookingModel.fromJson(item as Map<String, dynamic>)).toList();
+  } catch (e) {
+    print('[userBookingsProvider] Error fetching user bookings: $e');
+    return <BookingModel>[];
+  }
 });

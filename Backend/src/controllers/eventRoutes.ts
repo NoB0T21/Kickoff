@@ -3,6 +3,7 @@ import { authGuard } from '../middleware/authGuard.js';
 import { eventService } from '../services/eventService.js';
 import { supabaseAdmin } from '../config/supabase.js';
 import { env } from '../config/env.js';
+import { AppError } from '../middleware/errorHandler.js';
 import {
   CreateEventBody,
   CreateEventBodyType,
@@ -22,6 +23,10 @@ import {
   UpdateEventBodyType,
   CheckInBody,
   CheckInBodyType,
+  LogScoreBody,
+  LogScoreBodyType,
+  SettleMatchBody,
+  SettleMatchBodyType,
 } from '../schemas/eventSchemas.js';
 
 // Helper to extract optional auth token
@@ -78,6 +83,14 @@ function handleError(error: any, reply: any) {
       error: {
         code: 'BOOKING_NOT_FOUND',
         message: 'The requested booking was not found.',
+      },
+    });
+  }
+  if (msg === 'BOOKING_EXPIRED') {
+    return reply.code(400).send({
+      error: {
+        code: 'BOOKING_EXPIRED',
+        message: 'This booking slot has already passed/expired. You cannot host a match for this slot.',
       },
     });
   }
@@ -165,7 +178,7 @@ function handleError(error: any, reply: any) {
     return reply.code(409).send({
       error: {
         code: 'EVENT_NOT_EDITABLE',
-        message: 'Only scheduled events can be edited.',
+        message: 'Completed events cannot be edited.',
       },
     });
   }
@@ -386,10 +399,35 @@ export async function eventRoutes(server: FastifyInstance) {
     },
     async (request, reply) => {
       const { id } = request.params;
-      const { guest_name } = request.body;
+      const name = request.body.guest_name || request.body.player_name;
+      const team = request.body.team || 'unassigned';
+
+      if (!name) {
+        return reply.code(400).send({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Please provide guest_name or player_name in request body.',
+          },
+        });
+      }
+
       try {
-        const guest = await eventService.addGuest(request.userId, id, guest_name);
-        return reply.code(201).send(guest);
+        const guest = await eventService.addGuest(request.userId, id, name, team);
+        // Format to match specs and include all required domain model fields
+        return reply.code(201).send({
+          id: guest.id,
+          event_id: guest.event_id,
+          profile_id: guest.profile_id,
+          guest_name: guest.guest_name,
+          player_name: guest.guest_name,
+          team: guest.team,
+          is_official: guest.is_official,
+          added_by: guest.added_by,
+          joined_at: guest.joined_at,
+          username: guest.username,
+          full_name: guest.full_name,
+          avatar_url: guest.avatar_url,
+        });
       } catch (error) {
         return handleError(error, reply);
       }
@@ -420,29 +458,32 @@ export async function eventRoutes(server: FastifyInstance) {
   );
 
   /**
-   * PATCH /api/events/:id/roster/:member_id/team
+   * PUT and PATCH /api/events/:id/roster/:member_id/team
    * Authenticated (host-only checked in service)
+   * Supports both PATCH and PUT, and translates A/B to team_a/team_b
    */
-  server.patch<{ Params: EventMemberParamsType; Body: AssignTeamBodyType }>(
-    '/api/events/:id/roster/:member_id/team',
-    {
-      onRequest: [authGuard],
-      schema: {
-        params: EventMemberParams,
-        body: AssignTeamBody,
-      },
+  server.route<{ Params: EventMemberParamsType; Body: AssignTeamBodyType }>({
+    method: ['PATCH', 'PUT'],
+    url: '/api/events/:id/roster/:member_id/team',
+    onRequest: [authGuard],
+    schema: {
+      params: EventMemberParams,
+      body: AssignTeamBody,
     },
-    async (request, reply) => {
+    handler: async (request, reply) => {
       const { id, member_id } = request.params;
       const { team } = request.body;
       try {
         const member = await eventService.assignTeam(request.userId, id, member_id, team);
-        return reply.code(200).send(member);
+        return reply.code(200).send({
+          id: member.id,
+          team: member.team === 'team_a' ? 'A' : (member.team === 'team_b' ? 'B' : 'unassigned'),
+        });
       } catch (error) {
         return handleError(error, reply);
       }
-    }
-  );
+    },
+  });
 
   /**
    * PATCH /api/events/:id
@@ -530,6 +571,111 @@ export async function eventRoutes(server: FastifyInstance) {
       try {
         const event = await eventService.checkIn(id, code);
         return reply.code(200).send(event);
+      } catch (error) {
+        return handleError(error, reply);
+      }
+    }
+  );
+
+  /**
+   * POST /api/events/:id/score/log
+   * Record scoring updates (host only).
+   */
+  server.post<{ Params: EventIdParamsType; Body: LogScoreBodyType }>(
+    '/api/events/:id/score/log',
+    {
+      onRequest: [authGuard],
+      schema: {
+        params: EventIdParams,
+        body: LogScoreBody,
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params;
+      const { sport, details } = request.body;
+      try {
+        const event = await eventService.logScore(request.userId, id, sport, details);
+        return reply.code(200).send({
+          event_id: event.id,
+          team_a_score: event.team_a_score,
+          team_b_score: event.team_b_score,
+          ...(event.sport === 'Cricket'
+            ? {
+                team_a_wickets: event.team_a_wickets,
+                team_b_wickets: event.team_b_wickets,
+                team_a_balls: event.team_a_balls,
+                team_b_balls: event.team_b_balls,
+                current_batting:
+                  event.current_batting === 'team_a'
+                    ? 'A'
+                    : event.current_batting === 'team_b'
+                    ? 'B'
+                    : 'unassigned',
+              }
+            : {}),
+        });
+      } catch (error) {
+        return handleError(error, reply);
+      }
+    }
+  );
+
+  /**
+   * GET /api/events/:id/score/logs
+   * Fetch match timeline logs (privacy validated).
+   */
+  server.get<{ Params: EventIdParamsType }>(
+    '/api/events/:id/score/logs',
+    {
+      schema: {
+        params: EventIdParams,
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params;
+      const userId = await getOptionalUserId(request);
+      try {
+        const logs = await eventService.getMatchLogs(userId, id);
+        const formattedLogs = logs.map((log) => ({
+          id: log.id,
+          event_id: log.event_id,
+          team: log.team === 'team_a' ? 'A' : log.team === 'team_b' ? 'B' : 'unassigned',
+          scorer_member_id: log.scorer_member_id,
+          minute: log.minute,
+          over_number: log.over_number ? parseFloat(log.over_number) : undefined,
+          log_type: log.log_type,
+          runs: log.runs,
+          extra_type: log.extra_type,
+          dismissal_type: log.dismissal_type,
+          message: log.message,
+          created_at: log.created_at,
+          player_name: log.guest_name || log.full_name || log.username,
+        }));
+        return reply.code(200).send(formattedLogs);
+      } catch (error) {
+        return handleError(error, reply);
+      }
+    }
+  );
+
+  /**
+   * POST /api/events/:id/settle
+   * Settle final match results and start points/achievements processing (host only).
+   */
+  server.post<{ Params: EventIdParamsType; Body: SettleMatchBodyType }>(
+    '/api/events/:id/settle',
+    {
+      onRequest: [authGuard],
+      schema: {
+        params: EventIdParams,
+        body: SettleMatchBody,
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params;
+      try {
+        const result = await eventService.settleMatch(request.userId, id, request.body);
+        return reply.code(200).send(result);
       } catch (error) {
         return handleError(error, reply);
       }

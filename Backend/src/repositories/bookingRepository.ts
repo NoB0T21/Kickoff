@@ -326,6 +326,42 @@ export const bookingRepository = {
   },
 
   /**
+   * Find all bookings for a user, including their associated turf and events.
+   */
+  async findByUserId(userId: string): Promise<any[]> {
+    const result = await pool.query(
+      `SELECT b.id, b.user_id, b.turf_id, b.slot_ids, b.slot_date::text, b.hours, b.total_price, b.status, b.cf_order_id, b.payment_session_id, b.transaction_id, b.idempotency_key, b.created_at, b.updated_at,
+              row_to_json(t.*) as turfs,
+              (
+                SELECT json_agg(json_build_object('id', e.id, 'status', e.status) ORDER BY e.created_at DESC)
+                FROM public.events e
+                WHERE e.booking_id = b.id
+              ) as events
+       FROM public.bookings b
+       LEFT JOIN public.turfs t ON b.turf_id = t.id
+       WHERE b.user_id = $1
+       ORDER BY b.created_at DESC`,
+      [userId]
+    );
+    return result.rows;
+  },
+
+  /**
+   * Find a booking by ID, including its associated turf.
+   */
+  async findByIdWithTurf(id: string): Promise<any | null> {
+    const result = await pool.query(
+      `SELECT b.id, b.user_id, b.turf_id, b.slot_ids, b.slot_date::text, b.hours, b.total_price, b.status, b.cf_order_id, b.payment_session_id, b.transaction_id, b.idempotency_key, b.created_at, b.updated_at,
+              row_to_json(t.*) as turfs
+       FROM public.bookings b
+       LEFT JOIN public.turfs t ON b.turf_id = t.id
+       WHERE b.id = $1`,
+      [id]
+    );
+    return result.rows[0] ?? null;
+  },
+
+  /**
    * Lock sweeping helper (fallback Node.js worker sweep).
    */
   async sweepExpiredLocks(): Promise<number> {

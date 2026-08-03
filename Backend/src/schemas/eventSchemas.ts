@@ -24,6 +24,8 @@ const RosterTeamEnum = Type.Union([
   Type.Literal('unassigned'),
   Type.Literal('team_a'),
   Type.Literal('team_b'),
+  Type.Literal('A'),
+  Type.Literal('B'),
 ]);
 
 // POST /api/events
@@ -60,7 +62,9 @@ export type InviteTokenParamsType = Static<typeof InviteTokenParams>;
 
 // POST /api/events/:id/roster/guest
 export const AddGuestBody = Type.Object({
-  guest_name: Type.String({ minLength: 1 }),
+  guest_name: Type.Optional(Type.String({ minLength: 1 })),
+  player_name: Type.Optional(Type.String({ minLength: 1 })),
+  team: Type.Optional(RosterTeamEnum),
 });
 export type AddGuestBodyType = Static<typeof AddGuestBody>;
 
@@ -71,7 +75,7 @@ export const EventMemberParams = Type.Object({
 });
 export type EventMemberParamsType = Static<typeof EventMemberParams>;
 
-// PATCH /api/events/:id/roster/:member_id/team
+// PATCH/PUT /api/events/:id/roster/:member_id/team
 export const AssignTeamBody = Type.Object({
   team: RosterTeamEnum,
 });
@@ -91,3 +95,33 @@ export const CheckInBody = Type.Object({
   qr_code: Type.Optional(Type.String({ minLength: 1 })),
 });
 export type CheckInBodyType = Static<typeof CheckInBody>;
+
+// POST /api/events/:id/score/log
+export const LogScoreBody = Type.Object({
+  sport: SportTypeEnum,
+  details: Type.Object({
+    team: Type.Union([Type.Literal('A'), Type.Literal('B'), Type.Literal('team_a'), Type.Literal('team_b')]),
+    scorer_member_id: Type.Optional(Type.String({ format: 'uuid' })),
+    minute: Type.Optional(Type.Integer({ minimum: 0 })),
+    // Cricket fields
+    outcome: Type.Optional(Type.String()),
+    runs: Type.Optional(Type.Integer({ minimum: 0 })),
+    extra_type: Type.Optional(Type.Union([Type.Literal('wide'), Type.Literal('no_ball')])),
+    dismissal_type: Type.Optional(Type.Union([Type.Literal('caught'), Type.Literal('bowled'), Type.Literal('run_out'), Type.Literal('lbw')])),
+  }),
+});
+export type LogScoreBodyType = Static<typeof LogScoreBody>;
+
+// POST /api/events/:id/settle
+export const PlayerStatItem = Type.Object({
+  profile_id: Type.String({ format: 'uuid' }),
+  goals: Type.Optional(Type.Integer({ minimum: 0 })),
+});
+
+export const SettleMatchBody = Type.Object({
+  winning_team: Type.Union([Type.Literal('A'), Type.Literal('B'), Type.Literal('Draw')]),
+  man_of_the_match_id: Type.Optional(Type.String({ format: 'uuid' })),
+  player_stats: Type.Optional(Type.Array(PlayerStatItem)),
+});
+export type SettleMatchBodyType = Static<typeof SettleMatchBody>;
+

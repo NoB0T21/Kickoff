@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:kickoff/features/auth/presentation/providers/auth_providers.dart';
 import 'package:kickoff/core/theme/app_theme.dart';
 import 'package:kickoff/features/bookings/domain/booking_model.dart';
 import 'package:kickoff/features/events/presentation/providers/event_providers.dart';
@@ -44,14 +44,11 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
 
   Future<void> _loadBookingDetails() async {
     try {
-      final response = await Supabase.instance.client
-          .from('bookings')
-          .select('*, turfs(*)')
-          .eq('id', widget.bookingId)
-          .single();
-
+      final apiClient = ref.read(apiClientProvider);
+      final response = await apiClient.get('/api/bookings/${widget.bookingId}');
+      
       if (mounted) {
-        final booking = BookingModel.fromJson(response);
+        final booking = BookingModel.fromJson(response.data as Map<String, dynamic>);
         setState(() {
           _booking = booking;
           _isLoadingBooking = false;

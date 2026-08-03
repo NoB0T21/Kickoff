@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:kickoff/core/network/api_client.dart';
 import 'package:kickoff/core/network/api_exceptions.dart';
 import 'package:kickoff/features/auth/data/auth_repository.dart';
@@ -32,22 +31,23 @@ class AuthNotifier extends StateNotifier<app.AuthState> {
   }
 
   void _init() {
-    // Listen to Supabase auth state changes
+    // Listen to backend-brokered auth state changes
     _authSubscription =
         _ref.read(authRepositoryProvider).authStateChanges.listen((event) {
       _handleAuthChange(event);
     });
 
     // Check initial session
-    final session = _ref.read(authRepositoryProvider).currentSession;
-    if (session != null) {
-      _checkOnboardingStatus();
-    } else {
-      state = state.copyWith(status: app.AuthStatus.unauthenticated);
-    }
+    _ref.read(authRepositoryProvider).currentSession.then((session) {
+      if (session != null) {
+        _checkOnboardingStatus();
+      } else {
+        state = state.copyWith(status: app.AuthStatus.unauthenticated);
+      }
+    });
   }
 
-  Future<void> _handleAuthChange(AuthState event) async {
+  Future<void> _handleAuthChange(AuthStateChangeEvent event) async {
     switch (event.event) {
       case AuthChangeEvent.signedIn:
       case AuthChangeEvent.tokenRefreshed:
@@ -188,11 +188,8 @@ class AuthNotifier extends StateNotifier<app.AuthState> {
   }
 
   String _friendlyError(Object e) {
-    if (e is AuthException) {
-      return e.message;
-    }
     final msg = e.toString();
-    if (msg.contains('Invalid login credentials')) {
+    if (msg.contains('Invalid credentials') || msg.contains('Invalid login credentials')) {
       return 'Invalid email or password.';
     }
     if (msg.contains('User already registered')) {

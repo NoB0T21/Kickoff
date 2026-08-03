@@ -89,3 +89,26 @@ export const VerifyLoginOtpBody = Type.Object({
 });
 export type VerifyLoginOtpBodyType = Static<typeof VerifyLoginOtpBody>;
 
+export const LoginBody = Type.Object({
+  email: Type.String({ format: 'email' }),
+  password: Type.String({ minLength: 8 }),
+});
+export type LoginBodyType = Static<typeof LoginBody>;
+
+export const RefreshBody = Type.Object({
+  refresh_token: Type.String({ minLength: 1 }),
+});
+export type RefreshBodyType = Static<typeof RefreshBody>;
+
+export const GoogleLoginBody = Type.Object({
+  id_token: Type.String({ minLength: 1 }),
+  access_token: Type.Optional(Type.String()),
+});
+export type GoogleLoginBodyType = Static<typeof GoogleLoginBody>;
+
+export const AppleLoginBody = Type.Object({
+  id_token: Type.String({ minLength: 1 }),
+});
+export type AppleLoginBodyType = Static<typeof AppleLoginBody>;
+
+

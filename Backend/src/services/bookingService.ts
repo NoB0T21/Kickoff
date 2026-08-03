@@ -183,7 +183,7 @@ class BookingService {
     }
 
     // Validate 5-hour cancellation window
-    const startTimeStr = `${booking.slot_date}T${String(booking.hours[0]).padStart(2, '0')}:00:00Z`;
+    const startTimeStr = `${booking.slot_date}T${String(booking.hours[0]).padStart(2, '0')}:00:00+05:30`;
     const startTime = new Date(startTimeStr);
     const now = new Date();
     

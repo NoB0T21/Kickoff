@@ -18,6 +18,14 @@ export interface EventRow {
   checked_in_at: string | null;
   created_at: string;
   turf_name?: string; // joined field helper
+  // New scoring fields:
+  team_a_score?: number;
+  team_b_score?: number;
+  team_a_wickets?: number;
+  team_b_wickets?: number;
+  team_a_balls?: number;
+  team_b_balls?: number;
+  current_batting?: 'team_a' | 'team_b' | 'unassigned';
 }
 
 export interface EventMemberRow {
@@ -114,12 +122,15 @@ export const eventRepository = {
   /**
    * Add a guest player to the roster.
    */
-  async addGuest(userId: string, eventId: string, guestName: string): Promise<EventMemberRow> {
+  async addGuest(userId: string, eventId: string, guestName: string, team: string = 'unassigned'): Promise<EventMemberRow> {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
       await client.query(`SELECT set_config('request.jwt.claim.sub', $1, true)`, [userId]);
-      const result = await client.query(`SELECT * FROM public.add_guest($1, $2)`, [eventId, guestName]);
+      const result = await client.query(
+        `SELECT * FROM public.add_guest($1, $2, $3::public.roster_team)`,
+        [eventId, guestName, team]
+      );
       await client.query('COMMIT');
       return result.rows[0] as EventMemberRow;
     } catch (error) {
@@ -166,12 +177,13 @@ export const eventRepository = {
   },
 
   /**
-   * Find event by ID, including turf details.
+   * Find event by ID, including turf details and scores.
    */
   async findById(id: string): Promise<EventRow | null> {
     const result = await pool.query(
       `SELECT e.id, e.booking_id, e.host_id, e.turf_id, e.title, e.description, e.sport, e.privacy, e.capacity,
               e.status, e.invite_token, e.qr_check_in_code, e.starts_at::text, e.ends_at::text, e.checked_in_at::text, e.created_at::text,
+              e.team_a_score, e.team_b_score, e.team_a_wickets, e.team_b_wickets, e.team_a_balls, e.team_b_balls, e.current_batting,
               t.name as turf_name
        FROM public.events e
        JOIN public.turfs t ON t.id = e.turf_id
@@ -231,13 +243,20 @@ export const eventRepository = {
       }
     }
 
+    let timeClause = '';
+    if (params.status === 'scheduled') {
+      timeClause = 'AND e.starts_at > NOW()';
+    }
+
     const sql = `
       SELECT e.id, e.booking_id, e.host_id, e.turf_id, e.title, e.description, e.sport, e.privacy, e.capacity,
              e.status, e.invite_token, e.qr_check_in_code, e.starts_at::text, e.ends_at::text, e.checked_in_at::text, e.created_at::text,
+             e.team_a_score, e.team_b_score, e.team_a_wickets, e.team_b_wickets, e.team_a_balls, e.team_b_balls, e.current_batting,
              t.name as turf_name
       FROM public.events e
       JOIN public.turfs t ON t.id = e.turf_id
       WHERE e.status = $1
+        ${timeClause}
         ${sportClause}
         ${authClause}
         ${cursorClause}
@@ -251,11 +270,6 @@ export const eventRepository = {
     const hasMore = rows.length > params.limit;
     const data = hasMore ? rows.slice(0, params.limit) : rows;
 
-    const next_cursor = hasMore
-      ? encodeCursor(rows[rows.length - 2].starts_at, rows[rows.length - 2].id) // last in slice
-      : null;
-
-    // Wait, let's make sure the next cursor uses the last element in data
     const finalNextCursor = hasMore && data.length > 0
       ? encodeCursor(data[data.length - 1].starts_at, data[data.length - 1].id)
       : null;
@@ -315,7 +329,8 @@ export const eventRepository = {
       SET ${fields.join(', ')}
       WHERE id = $${index}
       RETURNING id, booking_id, host_id, turf_id, title, description, sport, privacy, capacity,
-                status, invite_token, qr_check_in_code, starts_at::text, ends_at::text, checked_in_at::text, created_at::text
+                status, invite_token, qr_check_in_code, starts_at::text, ends_at::text, checked_in_at::text, created_at::text,
+                team_a_score, team_b_score, team_a_wickets, team_b_wickets, team_a_balls, team_b_balls, current_batting
     `;
 
     const result = await pool.query(sql, values);
@@ -342,7 +357,8 @@ export const eventRepository = {
        SET status = 'cancelled'
        WHERE id = $1
        RETURNING id, booking_id, host_id, turf_id, title, description, sport, privacy, capacity,
-                 status, invite_token, qr_check_in_code, starts_at::text, ends_at::text, checked_in_at::text, created_at::text`,
+                 status, invite_token, qr_check_in_code, starts_at::text, ends_at::text, checked_in_at::text, created_at::text,
+                 team_a_score, team_b_score, team_a_wickets, team_b_wickets, team_a_balls, team_b_balls, current_batting`,
       [id]
     );
     return result.rows[0];
@@ -357,7 +373,8 @@ export const eventRepository = {
        SET status = 'live', checked_in_at = NOW()
        WHERE id = $1
        RETURNING id, booking_id, host_id, turf_id, title, description, sport, privacy, capacity,
-                 status, invite_token, qr_check_in_code, starts_at::text, ends_at::text, checked_in_at::text, created_at::text`,
+                 status, invite_token, qr_check_in_code, starts_at::text, ends_at::text, checked_in_at::text, created_at::text,
+                 team_a_score, team_b_score, team_a_wickets, team_b_wickets, team_a_balls, team_b_balls, current_batting`,
       [id]
     );
     return result.rows[0];
@@ -385,5 +402,123 @@ export const eventRepository = {
        WHERE status = 'scheduled' AND ends_at < NOW() - INTERVAL '1 hour'`
     );
     return result.rowCount ?? 0;
+  },
+
+  /**
+   * Insert a match timeline log.
+   */
+  async insertMatchLog(params: {
+    eventId: string;
+    team: string;
+    scorerMemberId?: string;
+    minute?: number;
+    overNumber?: number;
+    logType: string;
+    runs?: number;
+    extraType?: string;
+    dismissalType?: string;
+    message: string;
+  }): Promise<any> {
+    const { eventId, team, scorerMemberId, minute, overNumber, logType, runs = 0, extraType, dismissalType, message } = params;
+    const result = await pool.query(
+      `INSERT INTO public.match_logs (
+        event_id, team, scorer_member_id, minute, over_number, log_type, runs, extra_type, dismissal_type, message
+      ) VALUES ($1, $2::public.roster_team, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING *`,
+      [
+        eventId,
+        team,
+        scorerMemberId ?? null,
+        minute ?? null,
+        overNumber ?? null,
+        logType,
+        runs,
+        extraType ?? null,
+        dismissalType ?? null,
+        message,
+      ]
+    );
+    return result.rows[0];
+  },
+
+  /**
+   * Update match score and details on public.events.
+   */
+  async updateMatchScore(
+    id: string,
+    updates: {
+      team_a_score?: number;
+      team_b_score?: number;
+      team_a_wickets?: number;
+      team_b_wickets?: number;
+      team_a_balls?: number;
+      team_b_balls?: number;
+      current_batting?: string;
+    }
+  ): Promise<EventRow> {
+    const fields: string[] = [];
+    const values: unknown[] = [];
+    let index = 1;
+
+    for (const [key, val] of Object.entries(updates)) {
+      if (key === 'current_batting') {
+        fields.push(`${key} = $${index}::public.roster_team`);
+      } else {
+        fields.push(`${key} = $${index}`);
+      }
+      values.push(val);
+      index++;
+    }
+
+    values.push(id);
+    const sql = `
+      UPDATE public.events
+      SET ${fields.join(', ')}
+      WHERE id = $${index}
+      RETURNING id, booking_id, host_id, turf_id, title, description, sport, privacy, capacity,
+                status, invite_token, qr_check_in_code, starts_at::text, ends_at::text, checked_in_at::text, created_at::text,
+                team_a_score, team_b_score, team_a_wickets, team_b_wickets, team_a_balls, team_b_balls, current_batting
+    `;
+
+    const result = await pool.query(sql, values);
+    return result.rows[0];
+  },
+
+  /**
+   * Get all match timeline logs for an event.
+   */
+  async getMatchLogs(eventId: string): Promise<any[]> {
+    const result = await pool.query(
+      `SELECT ml.*, em.guest_name, p.username, p.full_name
+       FROM public.match_logs ml
+       LEFT JOIN public.event_members em ON em.id = ml.scorer_member_id
+       LEFT JOIN public.profiles p ON p.id = em.profile_id
+       WHERE ml.event_id = $1
+       ORDER BY ml.created_at ASC`,
+      [eventId]
+    );
+    return result.rows;
+  },
+
+  /**
+   * Insert a match result row.
+   */
+  async insertMatchResult(params: {
+    eventId: string;
+    winningTeam: string;
+    manOfTheMatchId?: string;
+    submittedBy: string;
+  }): Promise<void> {
+    const { eventId, winningTeam, manOfTheMatchId, submittedBy } = params;
+    await pool.query(
+      `INSERT INTO public.match_results (
+        event_id, winning_team, man_of_the_match_id, submitted_by
+      ) VALUES ($1, $2::public.winning_team_type, $3, $4)
+       ON CONFLICT (event_id) DO UPDATE SET
+         winning_team = EXCLUDED.winning_team,
+         man_of_the_match_id = EXCLUDED.man_of_the_match_id,
+         submitted_by = EXCLUDED.submitted_by`,
+      [eventId, winningTeam, manOfTheMatchId ?? null, submittedBy]
+    );
   }
 };
