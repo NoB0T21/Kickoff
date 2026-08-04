@@ -27,6 +27,10 @@ import {
   LogScoreBodyType,
   SettleMatchBody,
   SettleMatchBodyType,
+  SetupTossBody,
+  SetupTossBodyType,
+  SetCricketPlayersBody,
+  SetCricketPlayersBodyType,
 } from '../schemas/eventSchemas.js';
 
 // Helper to extract optional auth token
@@ -611,9 +615,63 @@ export async function eventRoutes(server: FastifyInstance) {
                     : event.current_batting === 'team_b'
                     ? 'B'
                     : 'unassigned',
+                striker_id: event.striker_id,
+                non_striker_id: event.non_striker_id,
+                current_bowler_id: event.current_bowler_id,
+                toss_winner_team: event.toss_winner_team,
+                toss_decision: event.toss_decision,
               }
             : {}),
         });
+      } catch (error) {
+        return handleError(error, reply);
+      }
+    }
+  );
+
+  /**
+   * POST /api/events/:id/cricket/toss
+   * Setup cricket toss results (host only).
+   */
+  server.post<{ Params: EventIdParamsType; Body: SetupTossBodyType }>(
+    '/api/events/:id/cricket/toss',
+    {
+      onRequest: [authGuard],
+      schema: {
+        params: EventIdParams,
+        body: SetupTossBody,
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params;
+      const { toss_winner_team, toss_decision, max_overs } = request.body;
+      try {
+        const event = await eventService.setupToss(request.userId, id, toss_winner_team, toss_decision, max_overs);
+        return reply.code(200).send(event);
+      } catch (error) {
+        return handleError(error, reply);
+      }
+    }
+  );
+
+  /**
+   * POST /api/events/:id/cricket/players
+   * Set active striker, non-striker, or bowler (host only).
+   */
+  server.post<{ Params: EventIdParamsType; Body: SetCricketPlayersBodyType }>(
+    '/api/events/:id/cricket/players',
+    {
+      onRequest: [authGuard],
+      schema: {
+        params: EventIdParams,
+        body: SetCricketPlayersBody,
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params;
+      try {
+        const event = await eventService.setActiveCricketPlayers(request.userId, id, request.body);
+        return reply.code(200).send(event);
       } catch (error) {
         return handleError(error, reply);
       }

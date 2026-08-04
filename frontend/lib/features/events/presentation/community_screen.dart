@@ -230,16 +230,30 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> with SingleTi
                 ? const EventListSkeleton()
                 : eventsState.error != null
                     ? _buildErrorView(eventsState.error!)
-                    : eventsState.events.isEmpty
-                        ? _buildEmptyMatchesView()
-                        : ListView.builder(
-                            padding: const EdgeInsets.all(16),
-                            itemCount: eventsState.events.length,
-                            itemBuilder: (context, index) {
-                              final event = eventsState.events[index];
-                              return _buildEventCard(context, event);
-                            },
-                          ),
+                    : () {
+                        final activeEvents = eventsState.events.where((event) {
+                          final nowLocalAsUtc = DateTime.utc(
+                            DateTime.now().year,
+                            DateTime.now().month,
+                            DateTime.now().day,
+                            DateTime.now().hour,
+                            DateTime.now().minute,
+                            DateTime.now().second,
+                          );
+                          return event.endsAt.isAfter(nowLocalAsUtc);
+                        }).toList();
+
+                        return activeEvents.isEmpty
+                            ? _buildEmptyMatchesView()
+                            : ListView.builder(
+                                padding: const EdgeInsets.all(16),
+                                itemCount: activeEvents.length,
+                                itemBuilder: (context, index) {
+                                  final event = activeEvents[index];
+                                  return _buildEventCard(context, event);
+                                },
+                              );
+                      }(),
           ),
 
           // ── Tab 2: Find Players (Community Profiles) ──
@@ -356,7 +370,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> with SingleTi
                       const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
                       const SizedBox(width: 6),
                       Text(
-                        '${event.startsAt.day}/${event.startsAt.month} at ${event.startsAt.hour}:00',
+                        '${event.startsAt.day}/${event.startsAt.month} at ${event.startsAt.hour.toString().padLeft(2, '0')}:${event.startsAt.minute.toString().padLeft(2, '0')}',
                         style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                       ),
                     ],

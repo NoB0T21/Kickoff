@@ -28,6 +28,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
   String _selectedSport = 'Football';
   EventPrivacy _privacy = EventPrivacy.public;
   int _capacity = 4;
+  int _maxOvers = 10;
 
   @override
   void initState() {
@@ -118,6 +119,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
       sport: _selectedSport,
       privacy: _privacy.name,
       capacity: _capacity,
+      maxOvers: _selectedSport == 'Cricket' ? _maxOvers : null,
     );
 
     if (event != null && mounted) {
@@ -273,6 +275,23 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                     .toList(),
                 onChanged: _onSportChanged,
               ),
+              if (_selectedSport == 'Cricket') ...[
+                const SizedBox(height: 16),
+                Text('Match Overs', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<int>(
+                  value: _maxOvers,
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  items: [5, 6, 7, 8, 9, 10]
+                      .map((o) => DropdownMenuItem(value: o, child: Text('$o Overs')))
+                      .toList(),
+                  onChanged: (val) {
+                    if (val != null) setState(() => _maxOvers = val);
+                  },
+                ),
+              ],
               const SizedBox(height: 20),
 
               // Privacy selector

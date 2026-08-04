@@ -3,7 +3,7 @@ class AppConstants {
   // E.g. 'http://192.168.1.50:3000'
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://127.0.0.1:3000', // Default fallback for Android emulators (if run locally)
+    defaultValue: 'http://10.65.80.229:3000/', // Default fallback for Android emulators (if run locally)
   );
   // Supabase — used ONLY for Auth (token management, OAuth).
   // All data queries go through the backend API above.

@@ -17,10 +17,62 @@ class EventService {
       sport: string;
       privacy: string;
       capacity: number;
+      max_overs?: number;
     }
   ): Promise<EventRow> {
     try {
-      return await eventRepository.createEvent(userId, data);
+      // Check if event already exists
+      const checkRes = await pool.query(
+        `SELECT id, host_id, status, team_a_score, team_b_score FROM public.events WHERE booking_id = $1`,
+        [data.booking_id]
+      );
+      const existing = checkRes.rows[0];
+      if (existing) {
+        // If the event exists and is completed/cancelled, recycle/reset it!
+        if (existing.status === 'completed' || existing.status === 'cancelled') {
+          console.log(`[createEvent] Recycling completed/cancelled event ${existing.id} for booking ${data.booking_id}`);
+          
+          let tossWinnerRecycled: string | null = null;
+          if ((existing.team_a_score ?? 0) > (existing.team_b_score ?? 0)) {
+            tossWinnerRecycled = 'team_a';
+          } else if ((existing.team_b_score ?? 0) > (existing.team_a_score ?? 0)) {
+            tossWinnerRecycled = 'team_b';
+          }
+
+          await pool.query(`DELETE FROM public.match_logs WHERE event_id = $1`, [existing.id]);
+          await pool.query(
+            `UPDATE public.events 
+             SET status = 'live', title = $2, description = $3, sport = $4::public.sport_type, privacy = $5::public.event_privacy, capacity = $6::smallint,
+                 team_a_score = 0, team_b_score = 0, team_a_wickets = 0, team_b_wickets = 0, team_a_balls = 0, team_b_balls = 0,
+                 current_batting = 'team_a', striker_id = null, non_striker_id = null, current_bowler_id = null,
+                 toss_winner_team = $8::public.roster_team, toss_decision = null, max_overs = $7
+             WHERE id = $1`,
+            [
+              existing.id,
+              data.title,
+              data.description ?? null,
+              data.sport,
+              data.privacy,
+              data.capacity,
+              data.max_overs ?? 10,
+              tossWinnerRecycled
+            ]
+          );
+          // Return the updated event row
+          const updated = await eventRepository.findById(existing.id);
+          if (!updated) throw new Error('EVENT_NOT_FOUND');
+          return updated;
+        } else {
+          throw new Error('EVENT_ALREADY_EXISTS');
+        }
+      }
+
+      const event = await eventRepository.createEvent(userId, data);
+      if (data.max_overs && data.sport === 'Cricket') {
+        await eventRepository.updateMatchScore(event.id, { max_overs: data.max_overs });
+        event.max_overs = data.max_overs;
+      }
+      return event;
     } catch (error: any) {
       if (error.code === '23505' && error.detail?.includes('booking_id')) {
         throw new Error('EVENT_ALREADY_EXISTS');
@@ -344,7 +396,7 @@ class EventService {
   async triggerAutoComplete(): Promise<{ completedLive: number; completedScheduled: number }> {
     // 1. Find live events past ends_at
     const liveRes = await pool.query(
-      `SELECT id FROM public.events WHERE status = 'live' AND ends_at < NOW()`
+      `SELECT id FROM public.events WHERE status = 'live' AND ends_at < (NOW() AT TIME ZONE 'Asia/Kolkata')`
     );
     const liveEvents = liveRes.rows;
     for (const e of liveEvents) {
@@ -357,7 +409,7 @@ class EventService {
 
     // 2. Find scheduled events past ends_at + 1 hour that never checked in
     const scheduledRes = await pool.query(
-      `SELECT id FROM public.events WHERE status = 'scheduled' AND ends_at < NOW() - INTERVAL '1 hour'`
+      `SELECT id FROM public.events WHERE status = 'scheduled' AND ends_at < (NOW() AT TIME ZONE 'Asia/Kolkata') - INTERVAL '1 hour'`
     );
     const scheduledEvents = scheduledRes.rows;
     for (const e of scheduledEvents) {
@@ -384,6 +436,7 @@ class EventService {
     details: {
       team: 'A' | 'B' | 'team_a' | 'team_b';
       scorer_member_id?: string;
+      out_member_id?: string | null;
       minute?: number;
       outcome?: string;
       runs?: number;
@@ -472,24 +525,94 @@ class EventService {
 
       const overStr = `${Math.floor(nextBalls / 6)}.${nextBalls % 6}`;
 
+      // Determine who got out if wicket
+      let outMemberId: string | null = null;
+      let nextStrikerId = event.striker_id;
+      let nextNonStrikerId = event.non_striker_id;
+      let nextBowlerId = event.current_bowler_id;
+
+      if (isWicket) {
+        outMemberId = details.out_member_id ?? event.striker_id ?? null;
+        if (outMemberId === event.striker_id) {
+          nextStrikerId = null;
+        } else if (outMemberId === event.non_striker_id) {
+          nextNonStrikerId = null;
+        }
+
+        // Gully Cricket Wicket Fallback:
+        // Check if there are any eligible batsmen left on the bench.
+        const roster = await eventRepository.getEventMembers(eventId);
+        const battingTeamMembers = roster.filter(
+          (m) =>
+            (teamMapped === 'team_a' && m.team === 'team_a') ||
+            (teamMapped === 'team_b' && m.team === 'team_b')
+        );
+
+        // Find eligible bench batsmen (members who have not gotten out, and are not striker/non-striker/outMemberId)
+        const benchBatsmen = battingTeamMembers.filter(
+          (m) => !m.is_out && m.id !== nextStrikerId && m.id !== nextNonStrikerId && m.id !== outMemberId
+        );
+
+        if (benchBatsmen.length === 0) {
+          // No players left on the bench!
+          // If striker got out and non-striker is still standing, promote non-striker to striker!
+          if (nextStrikerId === null && nextNonStrikerId !== null) {
+            nextStrikerId = nextNonStrikerId;
+            nextNonStrikerId = null;
+          }
+        }
+      }
+
+      // Check for strike rotation on runs (only if nobody got out and both striker/non-striker are set)
+      if (!isWicket && nextStrikerId && nextNonStrikerId) {
+        if (runsInput % 2 === 1) {
+          const temp = nextStrikerId;
+          nextStrikerId = nextNonStrikerId;
+          nextNonStrikerId = temp;
+        }
+      }
+
+      // Check for end of over (6 valid balls)
+      const isOverComplete = addBalls > 0 && nextBalls > 0 && nextBalls % 6 === 0;
+      if (isOverComplete) {
+        if (nextStrikerId && nextNonStrikerId) {
+          const temp = nextStrikerId;
+          nextStrikerId = nextNonStrikerId;
+          nextNonStrikerId = temp;
+        }
+        nextBowlerId = null; // Clear bowler, prompting selection of a new bowler
+      }
+
+      // Resolve scorer name for message
+      let activeScorerId = isWicket ? outMemberId : event.striker_id;
+      let batsmanName = 'Striker';
+      if (activeScorerId) {
+        const roster = await eventRepository.getEventMembers(eventId);
+        const batsman = roster.find((m) => m.id === activeScorerId);
+        if (batsman) {
+          batsmanName = batsman.guest_name ?? batsman.full_name ?? batsman.username ?? 'Athlete';
+        }
+      }
+
       let message = `${overStr} Over - `;
       let logType = 'runs';
 
       if (isWicket) {
-        message += `Wicket - ${details.dismissal_type ?? 'Bowled'} (${teamLabel})`;
+        message += `Wicket - ${batsmanName} ${details.dismissal_type ?? 'Bowled'} (${teamLabel})`;
         logType = 'wicket';
       } else if (isWide || isNoBall) {
         message += `Extra - ${details.extra_type} (+1 run) (${teamLabel})`;
         logType = 'extra';
       } else {
-        message += `${scorerName} scores ${runsInput} run(s) (${teamLabel})`;
+        message += `${batsmanName} scores ${runsInput} run(s) (${teamLabel})`;
       }
 
       // 1. Insert Match Log
       await eventRepository.insertMatchLog({
         eventId,
         team: teamMapped,
-        scorerMemberId: details.scorer_member_id,
+        scorerMemberId: activeScorerId,
+        bowlerMemberId: event.current_bowler_id,
         overNumber: parseFloat(overStr),
         logType,
         runs: addRuns,
@@ -499,7 +622,12 @@ class EventService {
       });
 
       // 2. Update Event Score state
-      const updates: any = {};
+      const updates: any = {
+        striker_id: nextStrikerId,
+        non_striker_id: nextNonStrikerId,
+        current_bowler_id: nextBowlerId,
+      };
+
       if (teamMapped === 'team_a') {
         updates.team_a_score = nextRuns;
         updates.team_a_wickets = nextWickets;
@@ -508,6 +636,60 @@ class EventService {
         updates.team_b_score = nextRuns;
         updates.team_b_wickets = nextWickets;
         updates.team_b_balls = nextBalls;
+      }
+
+      // Automatically determine innings completion and chase target logic
+      let firstBattingTeam: 'team_a' | 'team_b' = 'team_a';
+      if (event.toss_winner_team === 'team_a') {
+        firstBattingTeam = event.toss_decision === 'bat' ? 'team_a' : 'team_b';
+      } else if (event.toss_winner_team === 'team_b') {
+        firstBattingTeam = event.toss_decision === 'bat' ? 'team_b' : 'team_a';
+      }
+      const secondBattingTeam: 'team_a' | 'team_b' = firstBattingTeam === 'team_a' ? 'team_b' : 'team_a';
+
+      const maxBalls = (event.max_overs ?? 10) * 6;
+      const firstBattingScore = firstBattingTeam === teamMapped ? nextRuns : (firstBattingTeam === 'team_a' ? (event.team_a_score ?? 0) : (event.team_b_score ?? 0));
+      const targetRuns = firstBattingScore + 1;
+
+      if (teamMapped === firstBattingTeam) {
+        const isInningsOver = (nextStrikerId === null && nextNonStrikerId === null) || (nextBalls >= maxBalls);
+        if (isInningsOver) {
+          updates.current_batting = secondBattingTeam;
+          updates.striker_id = null;
+          updates.non_striker_id = null;
+          updates.current_bowler_id = null;
+
+          const overNotation = `${Math.floor(nextBalls / 6)}.${nextBalls % 6}`;
+          const endMessage = `Innings 1 Complete! Team ${teamLabel.toUpperCase()} scored ${nextRuns}/${nextWickets} in ${overNotation} overs. Team ${secondBattingTeam.toUpperCase()} needs ${targetRuns} runs to win.`;
+          
+          await eventRepository.insertMatchLog({
+            eventId,
+            team: teamMapped,
+            logType: 'score_update',
+            message: endMessage,
+          });
+        }
+      } else if (teamMapped === secondBattingTeam) {
+        const hasChased = nextRuns >= targetRuns;
+        const isInningsOver = (nextStrikerId === null && nextNonStrikerId === null) || (nextBalls >= maxBalls);
+
+        if (hasChased) {
+          const winMessage = `Match Over! Team ${teamLabel.toUpperCase()} successfully chased the target! Score: ${nextRuns}/${nextWickets} (Target: ${targetRuns})`;
+          await eventRepository.insertMatchLog({
+            eventId,
+            team: teamMapped,
+            logType: 'score_update',
+            message: winMessage,
+          });
+        } else if (isInningsOver) {
+          const winMessage = `Match Over! Team ${teamLabel.toUpperCase()} failed to chase target. Score: ${nextRuns}/${nextWickets} (Target: ${targetRuns}). Team ${firstBattingTeam.toUpperCase()} wins!`;
+          await eventRepository.insertMatchLog({
+            eventId,
+            team: teamMapped,
+            logType: 'score_update',
+            message: winMessage,
+          });
+        }
       }
 
       return eventRepository.updateMatchScore(eventId, updates);
@@ -708,6 +890,64 @@ class EventService {
       event_status: finalStatus,
       points_allocated: allocationProjection,
     };
+  }
+
+  /**
+   * Set up cricket toss results.
+   */
+  async setupToss(
+    userId: string,
+    eventId: string,
+    tossWinnerTeam: 'team_a' | 'team_b',
+    tossDecision: 'bat' | 'bowl',
+    maxOvers: number
+  ): Promise<EventRow> {
+    const event = await eventRepository.findById(eventId);
+    if (!event) {
+      throw new Error('EVENT_NOT_FOUND');
+    }
+    if (event.host_id !== userId) {
+      throw new Error('FORBIDDEN');
+    }
+
+    // Determine initial batting team based on toss decision
+    let currentBatting: 'team_a' | 'team_b' = 'team_a';
+    if (tossWinnerTeam === 'team_a') {
+      currentBatting = tossDecision === 'bat' ? 'team_a' : 'team_b';
+    } else {
+      currentBatting = tossDecision === 'bat' ? 'team_b' : 'team_a';
+    }
+
+    return eventRepository.updateMatchScore(eventId, {
+      toss_winner_team: tossWinnerTeam,
+      toss_decision: tossDecision,
+      current_batting: currentBatting,
+      max_overs: maxOvers,
+    });
+  }
+
+  /**
+   * Set active striker, non-striker, or bowler.
+   */
+  async setActiveCricketPlayers(
+    userId: string,
+    eventId: string,
+    data: { striker_id?: string | null; non_striker_id?: string | null; current_bowler_id?: string | null }
+  ): Promise<EventRow> {
+    const event = await eventRepository.findById(eventId);
+    if (!event) {
+      throw new Error('EVENT_NOT_FOUND');
+    }
+    if (event.host_id !== userId) {
+      throw new Error('FORBIDDEN');
+    }
+
+    const updates: any = {};
+    if (data.striker_id !== undefined) updates.striker_id = data.striker_id;
+    if (data.non_striker_id !== undefined) updates.non_striker_id = data.non_striker_id;
+    if (data.current_bowler_id !== undefined) updates.current_bowler_id = data.current_bowler_id;
+
+    return eventRepository.updateMatchScore(eventId, updates);
   }
 }
 

@@ -254,7 +254,7 @@ class EventDetailScreen extends ConsumerWidget {
           _buildMetaRow(
             Icons.access_time,
             'Time',
-            '${event.startsAt.day}/${event.startsAt.month} ${event.startsAt.hour}:00 - ${event.endsAt.hour}:00',
+            '${event.startsAt.day}/${event.startsAt.month} ${event.startsAt.hour.toString().padLeft(2, '0')}:${event.startsAt.minute.toString().padLeft(2, '0')} - ${event.endsAt.hour.toString().padLeft(2, '0')}:${event.endsAt.minute.toString().padLeft(2, '0')}',
           ),
           if (event.privacy == EventPrivacy.private) ...[
             const SizedBox(height: 8),

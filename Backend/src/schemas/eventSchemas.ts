@@ -36,6 +36,7 @@ export const CreateEventBody = Type.Object({
   sport: SportTypeEnum,
   privacy: EventPrivacyEnum,
   capacity: Type.Integer({ minimum: 1 }),
+  max_overs: Type.Optional(Type.Integer({ minimum: 5, maximum: 10 })),
 });
 export type CreateEventBodyType = Static<typeof CreateEventBody>;
 
@@ -100,8 +101,9 @@ export type CheckInBodyType = Static<typeof CheckInBody>;
 export const LogScoreBody = Type.Object({
   sport: SportTypeEnum,
   details: Type.Object({
-    team: Type.Union([Type.Literal('A'), Type.Literal('B'), Type.Literal('team_a'), Type.Literal('team_b')]),
+    team: Type.Union([Type.Union([Type.Literal('A'), Type.Literal('B'), Type.Literal('team_a'), Type.Literal('team_b')])]),
     scorer_member_id: Type.Optional(Type.String({ format: 'uuid' })),
+    out_member_id: Type.Optional(Type.Union([Type.String({ format: 'uuid' }), Type.Null()])),
     minute: Type.Optional(Type.Integer({ minimum: 0 })),
     // Cricket fields
     outcome: Type.Optional(Type.String()),
@@ -111,6 +113,22 @@ export const LogScoreBody = Type.Object({
   }),
 });
 export type LogScoreBodyType = Static<typeof LogScoreBody>;
+
+// POST /api/events/:id/cricket/toss
+export const SetupTossBody = Type.Object({
+  toss_winner_team: Type.Union([Type.Literal('team_a'), Type.Literal('team_b')]),
+  toss_decision: Type.Union([Type.Literal('bat'), Type.Literal('bowl')]),
+  max_overs: Type.Integer({ minimum: 5, maximum: 10 }),
+});
+export type SetupTossBodyType = Static<typeof SetupTossBody>;
+
+// POST /api/events/:id/cricket/players
+export const SetCricketPlayersBody = Type.Object({
+  striker_id: Type.Optional(Type.Union([Type.String({ format: 'uuid' }), Type.Null()])),
+  non_striker_id: Type.Optional(Type.Union([Type.String({ format: 'uuid' }), Type.Null()])),
+  current_bowler_id: Type.Optional(Type.Union([Type.String({ format: 'uuid' }), Type.Null()])),
+});
+export type SetCricketPlayersBodyType = Static<typeof SetCricketPlayersBody>;
 
 // POST /api/events/:id/settle
 export const PlayerStatItem = Type.Object({

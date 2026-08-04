@@ -30,6 +30,14 @@ class EventModel {
   final int teamBBalls;
   final String currentBatting; // 'team_a' or 'team_b' or 'unassigned'
 
+  // Cricket live state fields
+  final String? strikerId;
+  final String? nonStrikerId;
+  final String? currentBowlerId;
+  final String? tossWinnerTeam; // 'team_a' or 'team_b' or 'unassigned'
+  final String? tossDecision; // 'bat' or 'bowl'
+  final int maxOvers;
+
   EventModel({
     required this.id,
     required this.bookingId,
@@ -55,6 +63,12 @@ class EventModel {
     this.teamABalls = 0,
     this.teamBBalls = 0,
     this.currentBatting = 'team_a',
+    this.strikerId,
+    this.nonStrikerId,
+    this.currentBowlerId,
+    this.tossWinnerTeam,
+    this.tossDecision,
+    this.maxOvers = 10,
   });
 
   factory EventModel.fromJson(Map<String, dynamic> json) {
@@ -98,6 +112,12 @@ class EventModel {
       teamABalls: json['team_a_balls'] as int? ?? 0,
       teamBBalls: json['team_b_balls'] as int? ?? 0,
       currentBatting: json['current_batting'] as String? ?? 'team_a',
+      strikerId: json['striker_id'] as String?,
+      nonStrikerId: json['non_striker_id'] as String?,
+      currentBowlerId: json['current_bowler_id'] as String?,
+      tossWinnerTeam: json['toss_winner_team'] as String?,
+      tossDecision: json['toss_decision'] as String?,
+      maxOvers: json['max_overs'] as int? ?? 10,
     );
   }
 
@@ -127,6 +147,12 @@ class EventModel {
       'team_a_balls': teamABalls,
       'team_b_balls': teamBBalls,
       'current_batting': currentBatting,
+      'striker_id': strikerId,
+      'non_striker_id': nonStrikerId,
+      'current_bowler_id': currentBowlerId,
+      'toss_winner_team': tossWinnerTeam,
+      'toss_decision': tossDecision,
+      'max_overs': maxOvers,
     };
   }
 }

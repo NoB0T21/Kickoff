@@ -165,6 +165,7 @@ class EventActionNotifier extends StateNotifier<EventActionState> {
     required String sport,
     required String privacy,
     required int capacity,
+    int? maxOvers,
   }) async {
     state = EventActionState(isLoading: true);
     final apiClient = _ref.read(apiClientProvider);
@@ -176,6 +177,7 @@ class EventActionNotifier extends StateNotifier<EventActionState> {
         'sport': sport,
         'privacy': privacy,
         'capacity': capacity,
+        if (maxOvers != null) 'max_overs': maxOvers,
       });
       final event = EventModel.fromJson(response.data as Map<String, dynamic>);
       state = EventActionState(isLoading: false, result: event);
@@ -351,7 +353,46 @@ class EventActionNotifier extends StateNotifier<EventActionState> {
       });
       state = EventActionState(isLoading: false, result: true);
       _ref.invalidate(eventDetailsProvider(eventId));
+      _ref.invalidate(eventRosterProvider(eventId));
       _ref.invalidate(matchLogsProvider(eventId));
+      return true;
+    } catch (e) {
+      state = EventActionState(isLoading: false, error: _getErrorMessage(e));
+      return false;
+    }
+  }
+
+  Future<bool> setupToss(String eventId, String winnerTeam, String decision, int maxOvers) async {
+    state = EventActionState(isLoading: true);
+    final apiClient = _ref.read(apiClientProvider);
+    try {
+      await apiClient.post('/api/events/$eventId/cricket/toss', data: {
+        'toss_winner_team': winnerTeam,
+        'toss_decision': decision,
+        'max_overs': maxOvers,
+      });
+      state = EventActionState(isLoading: false, result: true);
+      _ref.invalidate(eventDetailsProvider(eventId));
+      _ref.invalidate(eventRosterProvider(eventId));
+      return true;
+    } catch (e) {
+      state = EventActionState(isLoading: false, error: _getErrorMessage(e));
+      return false;
+    }
+  }
+
+  Future<bool> setActiveCricketPlayers(String eventId, {String? strikerId, String? nonStrikerId, String? bowlerId}) async {
+    state = EventActionState(isLoading: true);
+    final apiClient = _ref.read(apiClientProvider);
+    try {
+      await apiClient.post('/api/events/$eventId/cricket/players', data: {
+        'striker_id': strikerId,
+        'non_striker_id': nonStrikerId,
+        'current_bowler_id': bowlerId,
+      });
+      state = EventActionState(isLoading: false, result: true);
+      _ref.invalidate(eventDetailsProvider(eventId));
+      _ref.invalidate(eventRosterProvider(eventId));
       return true;
     } catch (e) {
       state = EventActionState(isLoading: false, error: _getErrorMessage(e));

@@ -26,6 +26,12 @@ export interface EventRow {
   team_a_balls?: number;
   team_b_balls?: number;
   current_batting?: 'team_a' | 'team_b' | 'unassigned';
+  striker_id?: string | null;
+  non_striker_id?: string | null;
+  current_bowler_id?: string | null;
+  toss_winner_team?: 'team_a' | 'team_b' | 'unassigned' | null;
+  toss_decision?: 'bat' | 'bowl' | null;
+  max_overs?: number;
 }
 
 export interface EventMemberRow {
@@ -40,6 +46,18 @@ export interface EventMemberRow {
   username?: string;    // joined profile fields
   full_name?: string;
   avatar_url?: string | null;
+  // Cricket stats
+  batting_runs?: number;
+  balls_faced?: number;
+  is_out?: boolean;
+  bowler_runs?: number;
+  bowler_wickets?: number;
+  bowler_balls?: number;
+  bowler_wides?: number;
+  bowler_noballs?: number;
+  bowler_dots?: number;
+  bowler_fours?: number;
+  bowler_sixes?: number;
 }
 
 interface CursorParts {
@@ -184,6 +202,7 @@ export const eventRepository = {
       `SELECT e.id, e.booking_id, e.host_id, e.turf_id, e.title, e.description, e.sport, e.privacy, e.capacity,
               e.status, e.invite_token, e.qr_check_in_code, e.starts_at::text, e.ends_at::text, e.checked_in_at::text, e.created_at::text,
               e.team_a_score, e.team_b_score, e.team_a_wickets, e.team_b_wickets, e.team_a_balls, e.team_b_balls, e.current_batting,
+              e.striker_id, e.non_striker_id, e.current_bowler_id, e.toss_winner_team, e.toss_decision, e.max_overs,
               t.name as turf_name
        FROM public.events e
        JOIN public.turfs t ON t.id = e.turf_id
@@ -245,13 +264,14 @@ export const eventRepository = {
 
     let timeClause = '';
     if (params.status === 'scheduled') {
-      timeClause = 'AND e.starts_at > NOW()';
+      timeClause = `AND e.ends_at > (NOW() AT TIME ZONE 'Asia/Kolkata')`;
     }
 
     const sql = `
       SELECT e.id, e.booking_id, e.host_id, e.turf_id, e.title, e.description, e.sport, e.privacy, e.capacity,
              e.status, e.invite_token, e.qr_check_in_code, e.starts_at::text, e.ends_at::text, e.checked_in_at::text, e.created_at::text,
              e.team_a_score, e.team_b_score, e.team_a_wickets, e.team_b_wickets, e.team_a_balls, e.team_b_balls, e.current_batting,
+             e.striker_id, e.non_striker_id, e.current_bowler_id, e.toss_winner_team, e.toss_decision, e.max_overs,
              t.name as turf_name
       FROM public.events e
       JOIN public.turfs t ON t.id = e.turf_id
@@ -286,7 +306,19 @@ export const eventRepository = {
   async getEventMembers(eventId: string): Promise<EventMemberRow[]> {
     const result = await pool.query(
       `SELECT em.id, em.event_id, em.profile_id, em.guest_name, em.team, em.is_official, em.added_by, em.joined_at::text,
-              p.username, p.full_name, p.avatar_url
+              p.username, p.full_name, p.avatar_url,
+              -- Cricket statistics
+              COALESCE((SELECT SUM(runs) FROM public.match_logs WHERE scorer_member_id = em.id AND log_type = 'runs'), 0)::integer as batting_runs,
+              COALESCE((SELECT COUNT(*) FROM public.match_logs WHERE scorer_member_id = em.id AND log_type IN ('runs', 'dot')), 0)::integer as balls_faced,
+              EXISTS (SELECT 1 FROM public.match_logs WHERE scorer_member_id = em.id AND log_type = 'wicket') as is_out,
+              COALESCE((SELECT SUM(runs) FROM public.match_logs WHERE bowler_member_id = em.id), 0)::integer as bowler_runs,
+              COALESCE((SELECT COUNT(*) FROM public.match_logs WHERE bowler_member_id = em.id AND log_type = 'wicket' AND dismissal_type <> 'run_out'), 0)::integer as bowler_wickets,
+              COALESCE((SELECT COUNT(*) FROM public.match_logs WHERE bowler_member_id = em.id AND log_type IN ('runs', 'dot', 'wicket') AND extra_type IS NULL), 0)::integer as bowler_balls,
+              COALESCE((SELECT COUNT(*) FROM public.match_logs WHERE bowler_member_id = em.id AND extra_type = 'wide'), 0)::integer as bowler_wides,
+              COALESCE((SELECT COUNT(*) FROM public.match_logs WHERE bowler_member_id = em.id AND extra_type = 'no_ball'), 0)::integer as bowler_noballs,
+              COALESCE((SELECT COUNT(*) FROM public.match_logs WHERE bowler_member_id = em.id AND runs = 0 AND log_type = 'dot'), 0)::integer as bowler_dots,
+              COALESCE((SELECT COUNT(*) FROM public.match_logs WHERE bowler_member_id = em.id AND runs = 4 AND log_type = 'runs'), 0)::integer as bowler_fours,
+              COALESCE((SELECT COUNT(*) FROM public.match_logs WHERE bowler_member_id = em.id AND runs = 6 AND log_type = 'runs'), 0)::integer as bowler_sixes
        FROM public.event_members em
        LEFT JOIN public.profiles p ON p.id = em.profile_id
        WHERE em.event_id = $1
@@ -387,7 +419,7 @@ export const eventRepository = {
     const result = await pool.query(
       `UPDATE public.events
        SET status = 'completed'
-       WHERE status = 'live' AND ends_at < NOW()`
+       WHERE status = 'live' AND ends_at < (NOW() AT TIME ZONE 'Asia/Kolkata')`
     );
     return result.rowCount ?? 0;
   },
@@ -399,7 +431,7 @@ export const eventRepository = {
     const result = await pool.query(
       `UPDATE public.events
        SET status = 'completed'
-       WHERE status = 'scheduled' AND ends_at < NOW() - INTERVAL '1 hour'`
+       WHERE status = 'scheduled' AND ends_at < (NOW() AT TIME ZONE 'Asia/Kolkata') - INTERVAL '1 hour'`
     );
     return result.rowCount ?? 0;
   },
@@ -410,7 +442,8 @@ export const eventRepository = {
   async insertMatchLog(params: {
     eventId: string;
     team: string;
-    scorerMemberId?: string;
+    scorerMemberId?: string | null;
+    bowlerMemberId?: string | null;
     minute?: number;
     overNumber?: number;
     logType: string;
@@ -419,16 +452,17 @@ export const eventRepository = {
     dismissalType?: string;
     message: string;
   }): Promise<any> {
-    const { eventId, team, scorerMemberId, minute, overNumber, logType, runs = 0, extraType, dismissalType, message } = params;
+    const { eventId, team, scorerMemberId, bowlerMemberId, minute, overNumber, logType, runs = 0, extraType, dismissalType, message } = params;
     const result = await pool.query(
       `INSERT INTO public.match_logs (
-        event_id, team, scorer_member_id, minute, over_number, log_type, runs, extra_type, dismissal_type, message
-      ) VALUES ($1, $2::public.roster_team, $3, $4, $5, $6, $7, $8, $9, $10)
+        event_id, team, scorer_member_id, bowler_member_id, minute, over_number, log_type, runs, extra_type, dismissal_type, message
+      ) VALUES ($1, $2::public.roster_team, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
       [
         eventId,
         team,
         scorerMemberId ?? null,
+        bowlerMemberId ?? null,
         minute ?? null,
         overNumber ?? null,
         logType,
@@ -454,6 +488,12 @@ export const eventRepository = {
       team_a_balls?: number;
       team_b_balls?: number;
       current_batting?: string;
+      striker_id?: string | null;
+      non_striker_id?: string | null;
+      current_bowler_id?: string | null;
+      toss_winner_team?: string | null;
+      toss_decision?: string | null;
+      max_overs?: number;
     }
   ): Promise<EventRow> {
     const fields: string[] = [];
@@ -461,7 +501,7 @@ export const eventRepository = {
     let index = 1;
 
     for (const [key, val] of Object.entries(updates)) {
-      if (key === 'current_batting') {
+      if (key === 'current_batting' || key === 'toss_winner_team') {
         fields.push(`${key} = $${index}::public.roster_team`);
       } else {
         fields.push(`${key} = $${index}`);
@@ -477,7 +517,8 @@ export const eventRepository = {
       WHERE id = $${index}
       RETURNING id, booking_id, host_id, turf_id, title, description, sport, privacy, capacity,
                 status, invite_token, qr_check_in_code, starts_at::text, ends_at::text, checked_in_at::text, created_at::text,
-                team_a_score, team_b_score, team_a_wickets, team_b_wickets, team_a_balls, team_b_balls, current_batting
+                team_a_score, team_b_score, team_a_wickets, team_b_wickets, team_a_balls, team_b_balls, current_batting,
+                striker_id, non_striker_id, current_bowler_id, toss_winner_team, toss_decision, max_overs
     `;
 
     const result = await pool.query(sql, values);
